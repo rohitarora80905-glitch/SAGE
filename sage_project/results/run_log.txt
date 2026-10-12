@@ -1,0 +1,376 @@
+22:50:03 config: {"n": 6, "m": 8, "ticks": 1500, "K": 100, "H": 30, "tau": 0.1, "h_min": 20, "w": 10, "drift_h": 8.0, "min_ll": -1.0, "floor": 0.001, "shift_tick": 600, "warmup_lives": 1, "aging": 400, "life_aging": 900, "fallback": "claims", "recovery": "partial"}
+22:50:04 headline fixed      bankers  seed 0  DL 0.0  queue 2.3%  thr 34.0  lat 0.038 ms  (0.2s)
+22:50:04 headline fixed      bankers  seed 1  DL 0.0  queue 18.6%  thr 26.0  lat 0.047 ms  (0.2s)
+22:50:04 headline fixed      bankers  seed 2  DL 0.0  queue 3.0%  thr 34.0  lat 0.044 ms  (0.2s)
+22:50:04 headline fixed      bankers  seed 3  DL 0.0  queue 6.1%  thr 29.3  lat 0.027 ms  (0.1s)
+22:50:04 headline fixed      bankers  seed 4  DL 0.0  queue 15.7%  thr 30.7  lat 0.023 ms  (0.1s)
+22:50:04 headline fixed      bankers  seed 5  DL 0.0  queue 5.6%  thr 33.3  lat 0.030 ms  (0.1s)
+22:50:04 headline fixed      bankers  seed 6  DL 0.0  queue 6.7%  thr 33.3  lat 0.024 ms  (0.1s)
+22:50:05 headline fixed      bankers  seed 7  DL 0.0  queue 1.0%  thr 32.0  lat 0.030 ms  (0.1s)
+22:50:05 headline fixed      bankers  seed 8  DL 0.0  queue 0.0%  thr 34.7  lat 0.029 ms  (0.1s)
+22:50:05 headline fixed      bankers  seed 9  DL 0.0  queue 0.0%  thr 35.3  lat 0.042 ms  (0.2s)
+22:50:05 headline fixed      bankers  seed 10  DL 0.0  queue 0.6%  thr 31.3  lat 0.034 ms  (0.2s)
+22:50:05 headline fixed      bankers  seed 11  DL 0.0  queue 17.7%  thr 28.0  lat 0.031 ms  (0.2s)
+22:50:05 headline fixed      bankers  seed 12  DL 0.0  queue 7.3%  thr 30.0  lat 0.030 ms  (0.1s)
+22:50:05 headline fixed      bankers  seed 13  DL 0.0  queue 6.6%  thr 32.0  lat 0.030 ms  (0.1s)
+22:50:06 headline fixed      bankers  seed 14  DL 0.0  queue 1.6%  thr 28.0  lat 0.027 ms  (0.1s)
+22:50:06 headline fixed      bankers  seed 15  DL 0.0  queue 7.2%  thr 32.7  lat 0.035 ms  (0.2s)
+22:50:06 headline fixed      bankers  seed 16  DL 0.0  queue 0.0%  thr 32.0  lat 0.078 ms  (0.3s)
+22:50:07 headline fixed      bankers  seed 17  DL 0.0  queue 12.8%  thr 34.7  lat 0.126 ms  (0.6s)
+22:50:07 headline fixed      bankers  seed 18  DL 0.0  queue 16.8%  thr 30.0  lat 0.093 ms  (0.5s)
+22:50:08 headline fixed      bankers  seed 19  DL 0.0  queue 7.8%  thr 30.0  lat 0.110 ms  (0.5s)
+22:50:08 headline fixed      reactive seed 0  DL 14.7  queue 0.0%  thr 33.3  lat 0.001 ms  (0.3s)
+22:50:08 headline fixed      reactive seed 1  DL 56.0  queue 0.0%  thr 22.7  lat 0.001 ms  (0.4s)
+22:50:09 headline fixed      reactive seed 2  DL 16.0  queue 0.0%  thr 30.7  lat 0.000 ms  (0.3s)
+22:50:09 headline fixed      reactive seed 3  DL 42.0  queue 0.0%  thr 26.0  lat 0.001 ms  (0.3s)
+22:50:10 headline fixed      reactive seed 4  DL 109.3  queue 0.0%  thr 22.7  lat 0.001 ms  (0.4s)
+22:50:10 headline fixed      reactive seed 5  DL 10.7  queue 0.0%  thr 34.0  lat 0.001 ms  (0.4s)
+22:50:10 headline fixed      reactive seed 6  DL 64.0  queue 0.0%  thr 26.7  lat 0.001 ms  (0.4s)
+22:50:11 headline fixed      reactive seed 7  DL 10.7  queue 0.0%  thr 31.3  lat 0.001 ms  (0.3s)
+22:50:11 headline fixed      reactive seed 8  DL 0.0  queue 0.0%  thr 34.7  lat 0.001 ms  (0.4s)
+22:50:11 headline fixed      reactive seed 9  DL 0.0  queue 0.0%  thr 35.3  lat 0.001 ms  (0.4s)
+22:50:12 headline fixed      reactive seed 10  DL 52.7  queue 0.0%  thr 27.3  lat 0.001 ms  (0.3s)
+22:50:12 headline fixed      reactive seed 11  DL 72.0  queue 0.0%  thr 22.0  lat 0.001 ms  (0.4s)
+22:50:12 headline fixed      reactive seed 12  DL 32.7  queue 0.0%  thr 28.7  lat 0.000 ms  (0.3s)
+22:50:13 headline fixed      reactive seed 13  DL 38.0  queue 0.0%  thr 29.3  lat 0.001 ms  (0.4s)
+22:50:13 headline fixed      reactive seed 14  DL 20.0  queue 0.0%  thr 26.7  lat 0.001 ms  (0.4s)
+22:50:14 headline fixed      reactive seed 15  DL 18.7  queue 0.0%  thr 32.7  lat 0.001 ms  (0.4s)
+22:50:14 headline fixed      reactive seed 16  DL 0.0  queue 0.0%  thr 32.0  lat 0.001 ms  (0.4s)
+22:50:14 headline fixed      reactive seed 17  DL 68.7  queue 0.0%  thr 28.7  lat 0.001 ms  (0.5s)
+22:50:15 headline fixed      reactive seed 18  DL 62.0  queue 0.0%  thr 26.7  lat 0.001 ms  (0.3s)
+22:50:15 headline fixed      reactive seed 19  DL 24.7  queue 0.0%  thr 28.7  lat 0.001 ms  (0.4s)
+22:50:26 headline fixed      sage     seed 0  DL 1.3  queue 3.9%  thr 35.3  lat 7.522 ms  (10.8s)
+22:50:44 headline fixed      sage     seed 1  DL 2.0  queue 7.2%  thr 26.0  lat 7.544 ms  (17.8s)
+22:51:00 headline fixed      sage     seed 2  DL 0.0  queue 7.8%  thr 35.3  lat 13.286 ms  (16.3s)
+22:51:22 headline fixed      sage     seed 3  DL 0.0  queue 5.7%  thr 30.0  lat 10.179 ms  (22.1s)
+22:51:35 headline fixed      sage     seed 4  DL 2.0  queue 7.6%  thr 30.0  lat 5.184 ms  (12.5s)
+22:51:50 headline fixed      sage     seed 5  DL 0.0  queue 8.2%  thr 33.3  lat 12.726 ms  (15.1s)
+22:52:08 headline fixed      sage     seed 6  DL 1.3  queue 8.3%  thr 32.0  lat 9.036 ms  (18.4s)
+22:52:20 headline fixed      sage     seed 7  DL 0.0  queue 8.0%  thr 33.3  lat 9.937 ms  (12.1s)
+22:52:31 headline fixed      sage     seed 8  DL 0.0  queue 0.0%  thr 34.7  lat 13.419 ms  (10.3s)
+22:52:41 headline fixed      sage     seed 9  DL 0.0  queue 0.0%  thr 35.3  lat 13.263 ms  (10.2s)
+22:52:53 headline fixed      sage     seed 10  DL 0.0  queue 2.2%  thr 30.7  lat 8.882 ms  (12.5s)
+22:53:11 headline fixed      sage     seed 11  DL 6.0  queue 21.8%  thr 28.7  lat 8.160 ms  (17.7s)
+22:53:24 headline fixed      sage     seed 12  DL 1.3  queue 7.7%  thr 31.3  lat 8.085 ms  (13.1s)
+22:53:42 headline fixed      sage     seed 13  DL 0.0  queue 22.6%  thr 31.3  lat 8.361 ms  (17.6s)
+22:53:56 headline fixed      sage     seed 14  DL 0.0  queue 6.3%  thr 28.7  lat 10.421 ms  (14.2s)
+22:54:08 headline fixed      sage     seed 15  DL 0.7  queue 3.7%  thr 34.7  lat 8.175 ms  (12.2s)
+22:54:19 headline fixed      sage     seed 16  DL 0.0  queue 0.0%  thr 32.0  lat 13.537 ms  (10.5s)
+22:54:32 headline fixed      sage     seed 17  DL 2.0  queue 14.3%  thr 37.3  lat 4.757 ms  (13.1s)
+22:54:48 headline fixed      sage     seed 18  DL 1.3  queue 21.4%  thr 34.7  lat 4.661 ms  (15.9s)
+22:55:03 headline fixed      sage     seed 19  DL 0.0  queue 4.2%  thr 28.7  lat 10.075 ms  (15.6s)
+22:55:04 headline bursty     bankers  seed 0  DL 0.0  queue 42.6%  thr 19.3  lat 0.071 ms  (0.7s)
+22:55:05 headline bursty     bankers  seed 1  DL 0.0  queue 41.1%  thr 20.0  lat 0.064 ms  (0.6s)
+22:55:05 headline bursty     bankers  seed 2  DL 0.0  queue 41.6%  thr 20.0  lat 0.070 ms  (0.7s)
+22:55:06 headline bursty     bankers  seed 3  DL 0.0  queue 40.2%  thr 18.7  lat 0.065 ms  (0.6s)
+22:55:07 headline bursty     bankers  seed 4  DL 0.0  queue 42.7%  thr 18.7  lat 0.074 ms  (0.7s)
+22:55:08 headline bursty     bankers  seed 5  DL 0.0  queue 43.0%  thr 20.0  lat 0.085 ms  (0.8s)
+22:55:08 headline bursty     bankers  seed 6  DL 0.0  queue 39.9%  thr 18.7  lat 0.079 ms  (0.8s)
+22:55:09 headline bursty     bankers  seed 7  DL 0.0  queue 41.6%  thr 20.0  lat 0.073 ms  (0.7s)
+22:55:10 headline bursty     bankers  seed 8  DL 0.0  queue 41.4%  thr 18.0  lat 0.085 ms  (0.8s)
+22:55:11 headline bursty     bankers  seed 9  DL 0.0  queue 40.5%  thr 19.3  lat 0.077 ms  (0.8s)
+22:55:11 headline bursty     bankers  seed 10  DL 0.0  queue 41.1%  thr 20.0  lat 0.088 ms  (0.8s)
+22:55:12 headline bursty     bankers  seed 11  DL 0.0  queue 40.9%  thr 18.7  lat 0.078 ms  (0.7s)
+22:55:13 headline bursty     bankers  seed 12  DL 0.0  queue 42.6%  thr 19.3  lat 0.083 ms  (0.8s)
+22:55:14 headline bursty     bankers  seed 13  DL 0.0  queue 39.2%  thr 20.0  lat 0.073 ms  (0.7s)
+22:55:14 headline bursty     bankers  seed 14  DL 0.0  queue 40.3%  thr 17.3  lat 0.075 ms  (0.7s)
+22:55:15 headline bursty     bankers  seed 15  DL 0.0  queue 39.6%  thr 20.0  lat 0.065 ms  (0.6s)
+22:55:16 headline bursty     bankers  seed 16  DL 0.0  queue 40.5%  thr 19.3  lat 0.069 ms  (0.7s)
+22:55:16 headline bursty     bankers  seed 17  DL 0.0  queue 40.4%  thr 20.0  lat 0.083 ms  (0.8s)
+22:55:17 headline bursty     bankers  seed 18  DL 0.0  queue 41.2%  thr 18.0  lat 0.103 ms  (1.0s)
+22:55:18 headline bursty     bankers  seed 19  DL 0.0  queue 44.7%  thr 20.0  lat 0.094 ms  (0.9s)
+22:55:19 headline bursty     reactive seed 0  DL 27.3  queue 0.0%  thr 17.3  lat 0.001 ms  (0.5s)
+22:55:19 headline bursty     reactive seed 1  DL 28.7  queue 0.0%  thr 16.0  lat 0.001 ms  (0.4s)
+22:55:20 headline bursty     reactive seed 2  DL 21.3  queue 0.0%  thr 17.3  lat 0.001 ms  (0.5s)
+22:55:20 headline bursty     reactive seed 3  DL 20.0  queue 0.0%  thr 18.0  lat 0.001 ms  (0.5s)
+22:55:21 headline bursty     reactive seed 4  DL 21.3  queue 0.0%  thr 17.3  lat 0.001 ms  (0.6s)
+22:55:21 headline bursty     reactive seed 5  DL 32.7  queue 0.0%  thr 18.0  lat 0.001 ms  (0.4s)
+22:55:22 headline bursty     reactive seed 6  DL 23.3  queue 0.0%  thr 16.7  lat 0.001 ms  (0.4s)
+22:55:22 headline bursty     reactive seed 7  DL 24.0  queue 0.0%  thr 16.7  lat 0.001 ms  (0.6s)
+22:55:23 headline bursty     reactive seed 8  DL 20.0  queue 0.0%  thr 17.3  lat 0.001 ms  (0.6s)
+22:55:23 headline bursty     reactive seed 9  DL 20.7  queue 0.0%  thr 18.0  lat 0.001 ms  (0.5s)
+22:55:24 headline bursty     reactive seed 10  DL 27.3  queue 0.0%  thr 17.3  lat 0.001 ms  (0.6s)
+22:55:24 headline bursty     reactive seed 11  DL 20.0  queue 0.0%  thr 17.3  lat 0.001 ms  (0.5s)
+22:55:25 headline bursty     reactive seed 12  DL 24.7  queue 0.0%  thr 17.3  lat 0.000 ms  (0.4s)
+22:55:25 headline bursty     reactive seed 13  DL 30.7  queue 0.0%  thr 16.7  lat 0.001 ms  (0.4s)
+22:55:26 headline bursty     reactive seed 14  DL 15.3  queue 0.0%  thr 16.0  lat 0.001 ms  (0.5s)
+22:55:26 headline bursty     reactive seed 15  DL 24.0  queue 0.0%  thr 18.0  lat 0.001 ms  (0.4s)
+22:55:26 headline bursty     reactive seed 16  DL 23.3  queue 0.0%  thr 16.7  lat 0.001 ms  (0.4s)
+22:55:27 headline bursty     reactive seed 17  DL 20.7  queue 0.0%  thr 18.0  lat 0.001 ms  (0.5s)
+22:55:27 headline bursty     reactive seed 18  DL 20.0  queue 0.0%  thr 16.7  lat 0.001 ms  (0.4s)
+22:55:28 headline bursty     reactive seed 19  DL 17.3  queue 0.0%  thr 18.7  lat 0.001 ms  (0.4s)
+22:55:29 headline bursty     sage     seed 0  DL 1.3  queue 33.5%  thr 19.3  lat 0.190 ms  (1.3s)
+22:55:30 headline bursty     sage     seed 1  DL 1.3  queue 32.0%  thr 19.3  lat 0.159 ms  (1.1s)
+22:55:31 headline bursty     sage     seed 2  DL 0.7  queue 35.8%  thr 18.7  lat 0.176 ms  (1.2s)
+22:55:33 headline bursty     sage     seed 3  DL 1.3  queue 30.6%  thr 19.3  lat 0.220 ms  (1.5s)
+22:55:34 headline bursty     sage     seed 4  DL 0.7  queue 31.8%  thr 18.7  lat 0.181 ms  (1.2s)
+22:55:36 headline bursty     sage     seed 5  DL 2.0  queue 35.4%  thr 20.0  lat 0.202 ms  (1.8s)
+22:55:37 headline bursty     sage     seed 6  DL 0.7  queue 31.5%  thr 19.3  lat 0.218 ms  (1.5s)
+22:55:39 headline bursty     sage     seed 7  DL 2.7  queue 33.6%  thr 20.0  lat 0.197 ms  (1.3s)
+22:55:40 headline bursty     sage     seed 8  DL 2.0  queue 33.0%  thr 18.0  lat 0.185 ms  (1.2s)
+22:55:41 headline bursty     sage     seed 9  DL 0.0  queue 32.6%  thr 20.0  lat 0.214 ms  (1.4s)
+22:55:42 headline bursty     sage     seed 10  DL 0.0  queue 31.5%  thr 18.7  lat 0.169 ms  (1.1s)
+22:55:44 headline bursty     sage     seed 11  DL 1.3  queue 30.5%  thr 19.3  lat 0.195 ms  (1.3s)
+22:55:45 headline bursty     sage     seed 12  DL 0.0  queue 35.0%  thr 19.3  lat 0.164 ms  (1.3s)
+22:55:46 headline bursty     sage     seed 13  DL 1.3  queue 31.9%  thr 20.7  lat 0.175 ms  (1.2s)
+22:55:47 headline bursty     sage     seed 14  DL 0.0  queue 33.2%  thr 17.3  lat 0.166 ms  (1.1s)
+22:55:49 headline bursty     sage     seed 15  DL 5.3  queue 34.5%  thr 19.3  lat 0.175 ms  (2.2s)
+22:55:51 headline bursty     sage     seed 16  DL 1.3  queue 30.1%  thr 19.3  lat 0.200 ms  (1.3s)
+22:55:52 headline bursty     sage     seed 17  DL 0.0  queue 33.5%  thr 20.0  lat 0.164 ms  (1.1s)
+22:55:53 headline bursty     sage     seed 18  DL 0.7  queue 31.3%  thr 18.0  lat 0.198 ms  (1.3s)
+22:55:54 headline bursty     sage     seed 19  DL 0.0  queue 33.8%  thr 20.0  lat 0.168 ms  (1.1s)
+22:55:55 headline escalating bankers  seed 0  DL 0.0  queue 9.0%  thr 81.3  lat 0.103 ms  (0.5s)
+22:55:55 headline escalating bankers  seed 1  DL 0.0  queue 0.0%  thr 102.0  lat 0.109 ms  (0.5s)
+22:55:56 headline escalating bankers  seed 2  DL 0.0  queue 3.8%  thr 86.0  lat 0.081 ms  (0.4s)
+22:55:56 headline escalating bankers  seed 3  DL 0.0  queue 3.7%  thr 85.3  lat 0.100 ms  (0.5s)
+22:55:57 headline escalating bankers  seed 4  DL 0.0  queue 8.0%  thr 108.7  lat 0.130 ms  (0.6s)
+22:55:57 headline escalating bankers  seed 5  DL 0.0  queue 11.8%  thr 109.3  lat 0.092 ms  (0.5s)
+22:55:58 headline escalating bankers  seed 6  DL 0.0  queue 27.4%  thr 78.0  lat 0.112 ms  (0.7s)
+22:55:59 headline escalating bankers  seed 7  DL 0.0  queue 6.9%  thr 97.3  lat 0.134 ms  (0.7s)
+22:55:59 headline escalating bankers  seed 8  DL 0.0  queue 18.5%  thr 83.3  lat 0.121 ms  (0.7s)
+22:56:00 headline escalating bankers  seed 9  DL 0.0  queue 16.2%  thr 86.7  lat 0.123 ms  (0.8s)
+22:56:01 headline escalating bankers  seed 10  DL 0.0  queue 6.3%  thr 74.0  lat 0.106 ms  (0.5s)
+22:56:01 headline escalating bankers  seed 11  DL 0.0  queue 13.8%  thr 77.3  lat 0.107 ms  (0.6s)
+22:56:02 headline escalating bankers  seed 12  DL 0.0  queue 0.0%  thr 94.7  lat 0.120 ms  (0.6s)
+22:56:02 headline escalating bankers  seed 13  DL 0.0  queue 18.8%  thr 68.0  lat 0.095 ms  (0.5s)
+22:56:03 headline escalating bankers  seed 14  DL 0.0  queue 12.8%  thr 90.0  lat 0.078 ms  (0.4s)
+22:56:04 headline escalating bankers  seed 15  DL 0.0  queue 16.2%  thr 58.0  lat 0.121 ms  (0.7s)
+22:56:04 headline escalating bankers  seed 16  DL 0.0  queue 18.0%  thr 86.0  lat 0.086 ms  (0.5s)
+22:56:05 headline escalating bankers  seed 17  DL 0.0  queue 18.1%  thr 81.3  lat 0.089 ms  (0.5s)
+22:56:05 headline escalating bankers  seed 18  DL 0.0  queue 2.7%  thr 85.3  lat 0.126 ms  (0.6s)
+22:56:06 headline escalating bankers  seed 19  DL 0.0  queue 10.9%  thr 96.7  lat 0.123 ms  (0.7s)
+22:56:06 headline escalating reactive seed 0  DL 18.0  queue 0.0%  thr 78.0  lat 0.001 ms  (0.6s)
+22:56:07 headline escalating reactive seed 1  DL 0.0  queue 0.0%  thr 102.0  lat 0.001 ms  (0.4s)
+22:56:07 headline escalating reactive seed 2  DL 3.3  queue 0.0%  thr 85.3  lat 0.001 ms  (0.5s)
+22:56:08 headline escalating reactive seed 3  DL 0.7  queue 0.0%  thr 84.7  lat 0.001 ms  (0.4s)
+22:56:08 headline escalating reactive seed 4  DL 12.0  queue 0.0%  thr 107.3  lat 0.001 ms  (0.4s)
+22:56:08 headline escalating reactive seed 5  DL 22.0  queue 0.0%  thr 100.0  lat 0.001 ms  (0.3s)
+22:56:09 headline escalating reactive seed 6  DL 18.7  queue 0.0%  thr 76.0  lat 0.002 ms  (0.4s)
+22:56:09 headline escalating reactive seed 7  DL 31.3  queue 0.0%  thr 85.3  lat 0.001 ms  (0.4s)
+22:56:10 headline escalating reactive seed 8  DL 14.7  queue 0.0%  thr 78.0  lat 0.001 ms  (0.5s)
+22:56:10 headline escalating reactive seed 9  DL 18.0  queue 0.0%  thr 76.7  lat 0.001 ms  (0.4s)
+22:56:11 headline escalating reactive seed 10  DL 49.3  queue 0.0%  thr 60.0  lat 0.001 ms  (0.5s)
+22:56:11 headline escalating reactive seed 11  DL 18.0  queue 0.0%  thr 70.0  lat 0.001 ms  (0.4s)
+22:56:11 headline escalating reactive seed 12  DL 0.0  queue 0.0%  thr 94.7  lat 0.001 ms  (0.4s)
+22:56:12 headline escalating reactive seed 13  DL 64.7  queue 0.0%  thr 51.3  lat 0.001 ms  (0.4s)
+22:56:12 headline escalating reactive seed 14  DL 10.7  queue 0.0%  thr 84.0  lat 0.001 ms  (0.4s)
+22:56:13 headline escalating reactive seed 15  DL 42.0  queue 0.0%  thr 49.3  lat 0.001 ms  (0.6s)
+22:56:13 headline escalating reactive seed 16  DL 10.7  queue 0.0%  thr 82.7  lat 0.001 ms  (0.4s)
+22:56:14 headline escalating reactive seed 17  DL 34.7  queue 0.0%  thr 70.7  lat 0.001 ms  (0.7s)
+22:56:14 headline escalating reactive seed 18  DL 0.7  queue 0.0%  thr 83.3  lat 0.001 ms  (0.4s)
+22:56:15 headline escalating reactive seed 19  DL 32.7  queue 0.0%  thr 88.0  lat 0.001 ms  (0.4s)
+22:56:29 headline escalating sage     seed 0  DL 0.0  queue 7.3%  thr 88.0  lat 8.676 ms  (14.7s)
+22:56:40 headline escalating sage     seed 1  DL 0.0  queue 0.0%  thr 102.0  lat 14.216 ms  (10.2s)
+22:56:51 headline escalating sage     seed 2  DL 0.7  queue 4.1%  thr 87.3  lat 15.132 ms  (11.8s)
+22:57:04 headline escalating sage     seed 3  DL 0.7  queue 5.8%  thr 90.0  lat 13.017 ms  (13.0s)
+22:57:18 headline escalating sage     seed 4  DL 0.0  queue 5.3%  thr 108.0  lat 10.863 ms  (13.3s)
+22:57:28 headline escalating sage     seed 5  DL 2.7  queue 10.0%  thr 134.7  lat 4.131 ms  (10.1s)
+22:57:46 headline escalating sage     seed 6  DL 2.7  queue 10.2%  thr 86.7  lat 12.164 ms  (18.2s)
+22:58:05 headline escalating sage     seed 7  DL 0.0  queue 8.0%  thr 102.7  lat 10.500 ms  (18.8s)
+22:58:22 headline escalating sage     seed 8  DL 2.0  queue 18.5%  thr 76.7  lat 12.573 ms  (16.9s)
+22:58:33 headline escalating sage     seed 9  DL 2.0  queue 7.8%  thr 116.7  lat 4.535 ms  (11.8s)
+22:58:50 headline escalating sage     seed 10  DL 0.0  queue 16.3%  thr 74.7  lat 11.179 ms  (17.1s)
+22:59:14 headline escalating sage     seed 11  DL 0.0  queue 11.0%  thr 78.0  lat 12.962 ms  (23.5s)
+22:59:25 headline escalating sage     seed 12  DL 0.0  queue 0.0%  thr 94.7  lat 15.752 ms  (11.4s)
+22:59:38 headline escalating sage     seed 13  DL 1.3  queue 8.8%  thr 54.0  lat 6.580 ms  (12.7s)
+22:59:53 headline escalating sage     seed 14  DL 1.3  queue 9.8%  thr 82.0  lat 13.005 ms  (15.3s)
+23:00:12 headline escalating sage     seed 15  DL 8.7  queue 17.6%  thr 54.0  lat 9.294 ms  (19.0s)
+23:00:21 headline escalating sage     seed 16  DL 0.0  queue 3.4%  thr 123.3  lat 5.361 ms  (8.4s)
+23:00:38 headline escalating sage     seed 17  DL 0.0  queue 9.9%  thr 87.3  lat 9.163 ms  (17.4s)
+23:00:49 headline escalating sage     seed 18  DL 0.0  queue 2.7%  thr 84.7  lat 13.777 ms  (10.6s)
+23:00:55 headline escalating sage     seed 19  DL 1.3  queue 4.9%  thr 129.3  lat 3.544 ms  (6.6s)
+23:00:56 headline mixed      bankers  seed 0  DL 0.0  queue 15.8%  thr 52.7  lat 0.109 ms  (0.6s)
+23:00:56 headline mixed      bankers  seed 1  DL 0.0  queue 13.1%  thr 36.0  lat 0.095 ms  (0.6s)
+23:00:57 headline mixed      bankers  seed 2  DL 0.0  queue 18.5%  thr 56.0  lat 0.098 ms  (0.6s)
+23:00:58 headline mixed      bankers  seed 3  DL 0.0  queue 16.0%  thr 67.3  lat 0.119 ms  (0.7s)
+23:00:58 headline mixed      bankers  seed 4  DL 0.0  queue 12.6%  thr 72.0  lat 0.090 ms  (0.5s)
+23:00:59 headline mixed      bankers  seed 5  DL 0.0  queue 15.4%  thr 62.0  lat 0.123 ms  (0.6s)
+23:00:59 headline mixed      bankers  seed 6  DL 0.0  queue 7.8%  thr 62.7  lat 0.095 ms  (0.6s)
+23:01:00 headline mixed      bankers  seed 7  DL 0.0  queue 18.3%  thr 39.3  lat 0.099 ms  (0.6s)
+23:01:01 headline mixed      bankers  seed 8  DL 0.0  queue 19.4%  thr 35.3  lat 0.087 ms  (0.6s)
+23:01:01 headline mixed      bankers  seed 9  DL 0.0  queue 18.5%  thr 35.3  lat 0.088 ms  (0.6s)
+23:01:02 headline mixed      bankers  seed 10  DL 0.0  queue 11.4%  thr 44.7  lat 0.114 ms  (0.6s)
+23:01:02 headline mixed      bankers  seed 11  DL 0.0  queue 14.9%  thr 60.0  lat 0.100 ms  (0.6s)
+23:01:03 headline mixed      bankers  seed 12  DL 0.0  queue 11.8%  thr 72.7  lat 0.101 ms  (0.5s)
+23:01:03 headline mixed      bankers  seed 13  DL 0.0  queue 18.8%  thr 42.0  lat 0.088 ms  (0.5s)
+23:01:04 headline mixed      bankers  seed 14  DL 0.0  queue 11.8%  thr 73.3  lat 0.096 ms  (0.5s)
+23:01:05 headline mixed      bankers  seed 15  DL 0.0  queue 15.8%  thr 60.0  lat 0.143 ms  (0.8s)
+23:01:05 headline mixed      bankers  seed 16  DL 0.0  queue 13.0%  thr 74.7  lat 0.109 ms  (0.6s)
+23:01:06 headline mixed      bankers  seed 17  DL 0.0  queue 7.6%  thr 37.3  lat 0.099 ms  (0.6s)
+23:01:06 headline mixed      bankers  seed 18  DL 0.0  queue 7.3%  thr 87.3  lat 0.091 ms  (0.5s)
+23:01:07 headline mixed      bankers  seed 19  DL 0.0  queue 15.7%  thr 33.3  lat 0.119 ms  (0.7s)
+23:01:07 headline mixed      reactive seed 0  DL 13.3  queue 0.0%  thr 42.7  lat 0.002 ms  (0.4s)
+23:01:08 headline mixed      reactive seed 1  DL 62.7  queue 0.0%  thr 26.7  lat 0.001 ms  (0.5s)
+23:01:08 headline mixed      reactive seed 2  DL 38.0  queue 0.0%  thr 43.3  lat 0.001 ms  (0.4s)
+23:01:09 headline mixed      reactive seed 3  DL 33.3  queue 0.0%  thr 53.3  lat 0.001 ms  (0.4s)
+23:01:09 headline mixed      reactive seed 4  DL 10.0  queue 0.0%  thr 59.3  lat 0.001 ms  (0.6s)
+23:01:10 headline mixed      reactive seed 5  DL 6.0  queue 0.0%  thr 49.3  lat 0.001 ms  (0.4s)
+23:01:10 headline mixed      reactive seed 6  DL 19.3  queue 0.0%  thr 52.0  lat 0.001 ms  (0.4s)
+23:01:11 headline mixed      reactive seed 7  DL 30.0  queue 0.0%  thr 30.0  lat 0.001 ms  (0.5s)
+23:01:11 headline mixed      reactive seed 8  DL 66.0  queue 0.0%  thr 25.3  lat 0.001 ms  (0.4s)
+23:01:12 headline mixed      reactive seed 9  DL 47.3  queue 0.0%  thr 27.3  lat 0.001 ms  (0.5s)
+23:01:12 headline mixed      reactive seed 10  DL 18.7  queue 0.0%  thr 38.7  lat 0.001 ms  (0.4s)
+23:01:12 headline mixed      reactive seed 11  DL 5.3  queue 0.0%  thr 51.3  lat 0.001 ms  (0.4s)
+23:01:13 headline mixed      reactive seed 12  DL 5.3  queue 0.0%  thr 62.0  lat 0.001 ms  (0.4s)
+23:01:13 headline mixed      reactive seed 13  DL 22.0  queue 0.0%  thr 34.0  lat 0.001 ms  (0.5s)
+23:01:14 headline mixed      reactive seed 14  DL 10.7  queue 0.0%  thr 64.7  lat 0.002 ms  (0.5s)
+23:01:14 headline mixed      reactive seed 15  DL 8.0  queue 0.0%  thr 56.7  lat 0.000 ms  (0.3s)
+23:01:15 headline mixed      reactive seed 16  DL 4.0  queue 0.0%  thr 64.0  lat 0.001 ms  (0.5s)
+23:01:15 headline mixed      reactive seed 17  DL 22.0  queue 0.0%  thr 34.0  lat 0.001 ms  (0.5s)
+23:01:15 headline mixed      reactive seed 18  DL 7.3  queue 0.0%  thr 71.3  lat 0.001 ms  (0.4s)
+23:01:16 headline mixed      reactive seed 19  DL 38.7  queue 0.0%  thr 30.0  lat 0.001 ms  (0.5s)
+23:01:33 headline mixed      sage     seed 0  DL 1.3  queue 23.5%  thr 58.7  lat 7.269 ms  (17.2s)
+23:01:54 headline mixed      sage     seed 1  DL 2.0  queue 21.5%  thr 34.0  lat 8.144 ms  (21.3s)
+23:02:13 headline mixed      sage     seed 2  DL 0.0  queue 26.7%  thr 47.3  lat 9.103 ms  (18.5s)
+23:02:32 headline mixed      sage     seed 3  DL 2.7  queue 39.6%  thr 37.3  lat 8.362 ms  (19.1s)
+23:02:46 headline mixed      sage     seed 4  DL 1.3  queue 21.9%  thr 75.3  lat 8.662 ms  (14.3s)
+23:03:00 headline mixed      sage     seed 5  DL 0.0  queue 12.7%  thr 53.3  lat 8.846 ms  (14.0s)
+23:03:19 headline mixed      sage     seed 6  DL 2.0  queue 17.8%  thr 72.7  lat 11.372 ms  (18.5s)
+23:03:38 headline mixed      sage     seed 7  DL 0.7  queue 22.9%  thr 36.7  lat 7.231 ms  (19.6s)
+23:03:56 headline mixed      sage     seed 8  DL 3.3  queue 22.8%  thr 38.0  lat 6.552 ms  (17.3s)
+23:04:07 headline mixed      sage     seed 9  DL 0.7  queue 8.4%  thr 36.0  lat 5.144 ms  (11.7s)
+23:04:25 headline mixed      sage     seed 10  DL 0.7  queue 34.6%  thr 42.7  lat 6.848 ms  (17.2s)
+23:04:36 headline mixed      sage     seed 11  DL 2.0  queue 19.5%  thr 56.7  lat 8.367 ms  (11.8s)
+23:04:48 headline mixed      sage     seed 12  DL 0.0  queue 15.0%  thr 94.7  lat 7.165 ms  (11.8s)
+23:05:05 headline mixed      sage     seed 13  DL 2.7  queue 17.3%  thr 38.7  lat 10.021 ms  (16.3s)
+23:05:17 headline mixed      sage     seed 14  DL 2.0  queue 14.2%  thr 82.0  lat 7.712 ms  (12.1s)
+23:05:33 headline mixed      sage     seed 15  DL 0.7  queue 17.9%  thr 70.0  lat 10.271 ms  (16.5s)
+23:05:46 headline mixed      sage     seed 16  DL 0.0  queue 12.6%  thr 70.7  lat 10.596 ms  (13.1s)
+23:06:03 headline mixed      sage     seed 17  DL 0.0  queue 16.6%  thr 36.0  lat 9.210 ms  (16.9s)
+23:06:15 headline mixed      sage     seed 18  DL 2.0  queue 15.6%  thr 79.3  lat 8.247 ms  (11.6s)
+23:06:30 headline mixed      sage     seed 19  DL 1.3  queue 35.6%  thr 27.3  lat 5.258 ms  (14.8s)
+23:06:40 accuracy fixed      held-out top-1 96.8%  ll -0.09 | in-run top-1 96.8%  ll -0.09  update 214.7 us  sample 0.84 us
+23:06:47 accuracy bursty     held-out top-1 23.2%  ll -3.98 | in-run top-1 22.8%  ll -3.91  update 186.6 us  sample 1.74 us
+23:06:53 accuracy escalating held-out top-1 100.0%  ll -0.12 | in-run top-1 98.8%  ll -0.07  update 219.6 us  sample 0.55 us
+23:07:08 leadtime fixed      seed 0  deadlocks 22  flagged 22
+23:07:16 leadtime fixed      seed 1  deadlocks 84  flagged 61
+23:07:30 leadtime fixed      seed 2  deadlocks 24  flagged 24
+23:07:41 leadtime fixed      seed 3  deadlocks 63  flagged 57
+23:07:51 leadtime fixed      seed 4  deadlocks 164  flagged 101
+23:07:52 leadtime bursty     seed 0  deadlocks 41  flagged 36
+23:07:53 leadtime bursty     seed 1  deadlocks 43  flagged 40
+23:07:54 leadtime bursty     seed 2  deadlocks 32  flagged 29
+23:07:55 leadtime bursty     seed 3  deadlocks 30  flagged 27
+23:07:56 leadtime bursty     seed 4  deadlocks 32  flagged 29
+23:08:10 leadtime escalating seed 0  deadlocks 27  flagged 23
+23:08:25 leadtime escalating seed 1  deadlocks 0  flagged 0
+23:08:42 leadtime escalating seed 2  deadlocks 5  flagged 5
+23:08:59 leadtime escalating seed 3  deadlocks 1  flagged 1
+23:09:13 leadtime escalating seed 4  deadlocks 18  flagged 18
+23:09:27 leadtime mixed      seed 0  deadlocks 20  flagged 19
+23:09:37 leadtime mixed      seed 1  deadlocks 94  flagged 70
+23:09:48 leadtime mixed      seed 2  deadlocks 57  flagged 48
+23:09:57 leadtime mixed      seed 3  deadlocks 50  flagged 44
+23:10:07 leadtime mixed      seed 4  deadlocks 15  flagged 15
+23:10:33 sweep tau 0.02 seed 0  DL 0.0  queue 15.3%  thr 48.7
+23:10:58 sweep tau 0.02 seed 1  DL 2.0  queue 21.1%  thr 34.7
+23:11:24 sweep tau 0.02 seed 2  DL 0.7  queue 22.1%  thr 41.3
+23:11:48 sweep tau 0.02 seed 3  DL 1.3  queue 42.0%  thr 53.3
+23:12:10 sweep tau 0.02 seed 4  DL 0.0  queue 20.3%  thr 99.3
+23:12:37 sweep tau 0.05 seed 0  DL 0.7  queue 9.4%  thr 48.0
+23:13:05 sweep tau 0.05 seed 1  DL 1.3  queue 19.6%  thr 31.3
+23:13:33 sweep tau 0.05 seed 2  DL 2.0  queue 11.6%  thr 44.7
+23:14:01 sweep tau 0.05 seed 3  DL 1.3  queue 41.8%  thr 50.7
+23:14:23 sweep tau 0.05 seed 4  DL 0.0  queue 18.4%  thr 102.7
+23:14:45 sweep tau 0.10 seed 0  DL 1.3  queue 23.5%  thr 58.7
+23:15:13 sweep tau 0.10 seed 1  DL 2.0  queue 21.5%  thr 34.0
+23:15:40 sweep tau 0.10 seed 2  DL 0.0  queue 26.7%  thr 47.3
+23:16:09 sweep tau 0.10 seed 3  DL 2.7  queue 39.6%  thr 37.3
+23:16:29 sweep tau 0.10 seed 4  DL 1.3  queue 21.9%  thr 75.3
+23:16:48 sweep tau 0.20 seed 0  DL 4.0  queue 12.6%  thr 56.7
+23:17:17 sweep tau 0.20 seed 1  DL 1.3  queue 17.2%  thr 34.7
+23:17:42 sweep tau 0.20 seed 2  DL 2.0  queue 12.2%  thr 48.7
+23:18:04 sweep tau 0.20 seed 3  DL 1.3  queue 11.0%  thr 52.7
+23:18:21 sweep tau 0.20 seed 4  DL 0.0  queue 10.7%  thr 86.0
+23:18:37 sweep tau 0.30 seed 0  DL 2.0  queue 7.9%  thr 42.0
+23:18:58 sweep tau 0.30 seed 1  DL 2.7  queue 14.2%  thr 36.7
+23:19:21 sweep tau 0.30 seed 2  DL 1.3  queue 8.1%  thr 46.7
+23:19:40 sweep tau 0.30 seed 3  DL 4.7  queue 13.0%  thr 64.7
+23:19:57 sweep tau 0.30 seed 4  DL 0.7  queue 14.0%  thr 70.0
+23:20:08 sweep tau 0.50 seed 0  DL 2.0  queue 11.6%  thr 60.0
+23:20:26 sweep tau 0.50 seed 1  DL 2.0  queue 12.0%  thr 36.0
+23:20:40 sweep tau 0.50 seed 2  DL 2.0  queue 7.9%  thr 54.7
+23:20:56 sweep tau 0.50 seed 3  DL 4.0  queue 13.6%  thr 66.0
+23:21:10 sweep tau 0.50 seed 4  DL 0.0  queue 9.4%  thr 67.3
+23:21:12 sweep tau 1.01 seed 0  DL 4.0  queue 5.8%  thr 54.0
+23:21:14 sweep tau 1.01 seed 1  DL 42.0  queue 7.0%  thr 32.0
+23:21:16 sweep tau 1.01 seed 2  DL 21.3  queue 6.3%  thr 51.3
+23:21:18 sweep tau 1.01 seed 3  DL 22.7  queue 7.3%  thr 66.7
+23:21:20 sweep tau 1.01 seed 4  DL 2.0  queue 4.4%  thr 68.7
+23:21:21 shift bankers  seed 0  DL total 0  window DL 0  q 25%  fb 0%  delay []  recov []
+23:21:22 shift bankers  seed 1  DL total 0  window DL 0  q 23%  fb 0%  delay []  recov []
+23:21:22 shift bankers  seed 2  DL total 0  window DL 0  q 17%  fb 0%  delay []  recov []
+23:21:23 shift bankers  seed 3  DL total 0  window DL 0  q 25%  fb 0%  delay []  recov []
+23:21:24 shift bankers  seed 4  DL total 0  window DL 0  q 18%  fb 0%  delay []  recov []
+23:21:24 shift bankers  seed 5  DL total 0  window DL 0  q 22%  fb 0%  delay []  recov []
+23:21:25 shift bankers  seed 6  DL total 0  window DL 0  q 24%  fb 0%  delay []  recov []
+23:21:26 shift bankers  seed 7  DL total 0  window DL 0  q 23%  fb 0%  delay []  recov []
+23:21:27 shift bankers  seed 8  DL total 0  window DL 0  q 22%  fb 0%  delay []  recov []
+23:21:27 shift bankers  seed 9  DL total 0  window DL 0  q 26%  fb 0%  delay []  recov []
+23:21:28 shift bankers  seed 10  DL total 0  window DL 0  q 24%  fb 0%  delay []  recov []
+23:21:29 shift bankers  seed 11  DL total 0  window DL 0  q 24%  fb 0%  delay []  recov []
+23:21:29 shift bankers  seed 12  DL total 0  window DL 0  q 19%  fb 0%  delay []  recov []
+23:21:30 shift bankers  seed 13  DL total 0  window DL 0  q 22%  fb 0%  delay []  recov []
+23:21:31 shift bankers  seed 14  DL total 0  window DL 0  q 25%  fb 0%  delay []  recov []
+23:21:32 shift bankers  seed 15  DL total 0  window DL 0  q 25%  fb 0%  delay []  recov []
+23:21:32 shift bankers  seed 16  DL total 0  window DL 0  q 19%  fb 0%  delay []  recov []
+23:21:33 shift bankers  seed 17  DL total 0  window DL 0  q 24%  fb 0%  delay []  recov []
+23:21:34 shift bankers  seed 18  DL total 0  window DL 0  q 22%  fb 0%  delay []  recov []
+23:21:35 shift bankers  seed 19  DL total 0  window DL 0  q 21%  fb 0%  delay []  recov []
+23:21:35 shift reactive seed 0  DL total 126  window DL 41  q 0%  fb 0%  delay []  recov []
+23:21:36 shift reactive seed 1  DL total 118  window DL 36  q 0%  fb 0%  delay []  recov []
+23:21:36 shift reactive seed 2  DL total 128  window DL 39  q 0%  fb 0%  delay []  recov []
+23:21:37 shift reactive seed 3  DL total 121  window DL 33  q 0%  fb 0%  delay []  recov []
+23:21:37 shift reactive seed 4  DL total 112  window DL 30  q 0%  fb 0%  delay []  recov []
+23:21:38 shift reactive seed 5  DL total 119  window DL 37  q 0%  fb 0%  delay []  recov []
+23:21:38 shift reactive seed 6  DL total 123  window DL 37  q 0%  fb 0%  delay []  recov []
+23:21:39 shift reactive seed 7  DL total 120  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:40 shift reactive seed 8  DL total 118  window DL 40  q 0%  fb 0%  delay []  recov []
+23:21:40 shift reactive seed 9  DL total 117  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:40 shift reactive seed 10  DL total 132  window DL 41  q 0%  fb 0%  delay []  recov []
+23:21:41 shift reactive seed 11  DL total 120  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:41 shift reactive seed 12  DL total 120  window DL 37  q 0%  fb 0%  delay []  recov []
+23:21:42 shift reactive seed 13  DL total 122  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:42 shift reactive seed 14  DL total 118  window DL 39  q 0%  fb 0%  delay []  recov []
+23:21:43 shift reactive seed 15  DL total 125  window DL 42  q 0%  fb 0%  delay []  recov []
+23:21:43 shift reactive seed 16  DL total 122  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:44 shift reactive seed 17  DL total 125  window DL 38  q 0%  fb 0%  delay []  recov []
+23:21:44 shift reactive seed 18  DL total 120  window DL 35  q 0%  fb 0%  delay []  recov []
+23:21:45 shift reactive seed 19  DL total 123  window DL 43  q 0%  fb 0%  delay []  recov []
+23:22:00 shift sage     seed 0  DL total 2  window DL 2  q 28%  fb 0%  delay [21, 18, 24]  recov [396, 387, 407]
+23:22:16 shift sage     seed 1  DL total 2  window DL 2  q 20%  fb 0%  delay [26, 18, 14]  recov [324, 337, 342]
+23:22:29 shift sage     seed 2  DL total 1  window DL 1  q 23%  fb 0%  delay [22, 19, 22]  recov [383, 380, 372]
+23:22:45 shift sage     seed 3  DL total 2  window DL 2  q 24%  fb 0%  delay [38, 25, 20]  recov [380, 414, 425]
+23:23:03 shift sage     seed 4  DL total 2  window DL 2  q 18%  fb 0%  delay [37, 35, 22]  recov [366, 363, 390]
+23:23:20 shift sage     seed 5  DL total 2  window DL 2  q 22%  fb 0%  delay [30, 24, 29]  recov [376, 374, 365]
+23:23:36 shift sage     seed 6  DL total 2  window DL 2  q 17%  fb 0%  delay [20, 26, 31]  recov [379, 380, 373]
+23:23:53 shift sage     seed 7  DL total 2  window DL 2  q 19%  fb 0%  delay [15, 17, 16]  recov [365, 363, 379]
+23:24:09 shift sage     seed 8  DL total 1  window DL 1  q 26%  fb 0%  delay [19, 24, 21]  recov [348, 347, 342]
+23:24:26 shift sage     seed 9  DL total 2  window DL 2  q 21%  fb 0%  delay [34, 22, 27]  recov [387, 388, 376]
+23:24:43 shift sage     seed 10  DL total 1  window DL 1  q 23%  fb 0%  delay [38, 35, 19]  recov [390, 387, 400]
+23:25:01 shift sage     seed 11  DL total 3  window DL 3  q 18%  fb 0%  delay [17, 26, 23]  recov [410, 408, 402]
+23:25:18 shift sage     seed 12  DL total 3  window DL 3  q 21%  fb 0%  delay [17, 17, 18]  recov [379, 403, 416]
+23:25:35 shift sage     seed 13  DL total 3  window DL 3  q 17%  fb 0%  delay [20, 26, 29]  recov [370, 357, 377]
+23:25:53 shift sage     seed 14  DL total 2  window DL 2  q 24%  fb 0%  delay [27, 35, 26]  recov [314, 305, 306]
+23:26:10 shift sage     seed 15  DL total 2  window DL 2  q 24%  fb 0%  delay [18, 16, 17]  recov [349, 358, 373]
+23:26:26 shift sage     seed 16  DL total 0  window DL 0  q 16%  fb 0%  delay [34, 18, 25]  recov [377, 378, 375]
+23:26:38 shift sage     seed 17  DL total 2  window DL 2  q 22%  fb 0%  delay [24, 24, 10]  recov [368, 395, 407]
+23:26:54 shift sage     seed 18  DL total 2  window DL 2  q 19%  fb 0%  delay [23, 21, 16]  recov [363, 378, 404]
+23:27:11 shift sage     seed 19  DL total 3  window DL 3  q 21%  fb 0%  delay [33, 24, 22]  recov [373, 391, 390]
+23:27:13 latency K  20 H  10  2.80 ms
+23:27:15 latency K  20 H  20  4.04 ms
+23:27:23 latency K  20 H  50  17.33 ms
+23:27:33 latency K  20 H 100  21.61 ms
+23:27:36 latency K  50 H  10  4.41 ms
+23:27:38 latency K  50 H  20  4.17 ms
+23:27:44 latency K  50 H  50  11.05 ms
+23:27:47 latency K  50 H 100  4.16 ms
+23:27:48 latency K 100 H  10  3.13 ms
+23:27:51 latency K 100 H  20  4.78 ms
+23:27:58 latency K 100 H  50  16.55 ms
+23:28:01 latency K 100 H 100  3.62 ms
+23:28:01 latency K 200 H  10  1.25 ms
+23:28:02 latency K 200 H  20  1.41 ms
+23:28:05 latency K 200 H  50  4.79 ms
+23:28:08 latency K 200 H 100  6.59 ms
+23:28:09 all experiments finished in 38.1 min
