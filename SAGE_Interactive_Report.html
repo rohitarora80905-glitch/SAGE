@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAGE Deadlock Avoidance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a lab report with a sticky contents rail on wide screens; one reading column of ~70ch,
+   figures run the full column width. Colour comes only from the method series and three states:
+   safe (green), held/queued (amber) and deadlocked (red). */
+:root {
+  --paper: #f4f5f2; --panel: #ffffff; --ink: #14181d; --ink-2: #4b535c; --ink-3: #7b838b; --rule: #d8dcd5;
+  --wash: #eaece7; --accent: #2a78d6; --accent-ink: #1c5cab;
+  --good: #1f8a4c; --hold: #b97a00; --bad: #cc3a32;
+  --m-sage: #2a78d6; --m-sage_v1: #eb6834; --m-bankers: #1baf7a; --m-bankers_nodecl: #eda100;
+  --m-reactive: #e87ba4; --m-timeout: #008300; --m-wait_die: #4a3aa7; --m-wound_wait: #e34948;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --shadow: 0 1px 2px rgba(20, 24, 29, .06), 0 6px 18px rgba(20, 24, 29, .05);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #111417; --panel: #181c20; --ink: #e8ebe6; --ink-2: #aab2ba; --ink-3: #7d868f; --rule: #2b3137;
+  --wash: #1e2328; --accent: #4c95ea; --accent-ink: #86b6ef;
+  --good: #3fb875; --hold: #e0a52a; --bad: #ef5f5a;
+  --m-sage: #3987e5; --m-sage_v1: #d95926; --m-bankers: #199e70; --m-bankers_nodecl: #c98500;
+  --m-reactive: #d55181; --m-timeout: #2f9a2f; --m-wait_die: #9085e9; --m-wound_wait: #e66767;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #111417; --panel: #181c20; --ink: #e8ebe6; --ink-2: #aab2ba; --ink-3: #7d868f; --rule: #2b3137;
+  --wash: #1e2328; --accent: #4c95ea; --accent-ink: #86b6ef;
+  --good: #3fb875; --hold: #e0a52a; --bad: #ef5f5a;
+  --m-sage: #3987e5; --m-sage_v1: #d95926; --m-bankers: #199e70; --m-bankers_nodecl: #c98500;
+  --m-reactive: #d55181; --m-timeout: #2f9a2f; --m-wait_die: #9085e9; --m-wound_wait: #e66767;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.62 var(--body); margin: 0; }
+.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; max-width: 1240px; margin: 0 auto;
+         padding-inline: 24px; padding-block: 0 80px; }
+@media (max-width: 960px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding-inline: 16px; } }
+
+/* contents rail */
+.rail { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 36px; max-height: 100vh; overflow: auto; }
+.rail .brand { font: 700 22px/1 var(--display); letter-spacing: .02em; color: var(--ink); text-decoration: none; display: block; }
+.rail .brand small { display: block; font: 500 11px/1.4 var(--mono); color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
+.rail ol { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 2px; counter-reset: sec; }
+.rail li a { display: grid; grid-template-columns: 26px 1fr; padding: 5px 8px; border-radius: 6px; color: var(--ink-2);
+             text-decoration: none; font-size: 13.5px; line-height: 1.35; counter-increment: sec; }
+.rail li a::before { content: counter(sec, decimal-leading-zero); font: 500 11px/1.9 var(--mono); color: var(--ink-3); }
+.rail li a:hover, .rail li a.on { background: var(--wash); color: var(--ink); }
+.rail li a.on::before { color: var(--accent); }
+.rail .theme { margin-top: 22px; display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 960px) {
+  .rail { position: sticky; z-index: 5; background: var(--paper); padding-top: 10px; padding-bottom: 8px; max-height: none;
+          border-bottom: 1px solid var(--rule); margin-inline: -16px; padding-inline: 16px; }
+  .rail ol { display: flex; overflow-x: auto; gap: 4px; margin-top: 10px; scrollbar-width: none; }
+  .rail li a { white-space: nowrap; grid-template-columns: auto auto; gap: 4px; }
+  .rail .brand small, .rail .theme { display: none; }
+}
+
+main { min-width: 0; }
+section { padding-top: 64px; scroll-margin-top: 70px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; color: var(--ink); }
+h1 { font-size: clamp(40px, 6.4vw, 76px); line-height: .98; font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.08; font-weight: 600; margin-bottom: 14px; }
+h3 { font-size: 20px; line-height: 1.25; font-weight: 600; margin: 28px 0 8px; }
+p { margin: 0 0 14px; max-width: 70ch; color: var(--ink); }
+.lede { font-size: 19px; line-height: 1.55; color: var(--ink-2); max-width: 62ch; }
+.muted { color: var(--ink-2); }
+.small { font-size: 13.5px; color: var(--ink-2); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code { font: 13.5px/1.4 var(--mono); background: var(--wash); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent-ink); }
+ul.tight { margin: 0 0 14px; padding-left: 20px; max-width: 70ch; }
+ul.tight li { margin-bottom: 6px; }
+hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+
+/* hero */
+.hero { padding-top: 48px; }
+.hero .sub { font: 500 15px/1.4 var(--mono); color: var(--ink-3); margin: 16px 0 22px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule);
+         border-bottom: 1px solid var(--rule); margin: 30px 0 8px; }
+.stat { padding: 16px 16px 14px 0; }
+.stat + .stat { padding-left: 16px; border-left: 1px solid var(--rule); }
+.stat .v { font: 600 34px/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat .v .from { font-size: 18px; color: var(--ink-3); font-weight: 500; text-decoration: line-through; text-decoration-thickness: 1px; margin-right: 6px; }
+.stat .k { font-size: 13px; color: var(--ink-2); margin-top: 8px; line-height: 1.35; }
+@media (max-width: 720px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(3) { border-left: 0; padding-left: 0; } .stat:nth-child(n+3) { border-top: 1px solid var(--rule); } }
+
+/* figure panels */
+.fig { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow);
+       padding: 18px; margin: 22px 0; min-width: 0; }
+.fig .cap { font-size: 13px; color: var(--ink-2); margin: 12px 0 0; max-width: none; }
+.fig .cap b { color: var(--ink); }
+.figrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .figrow { grid-template-columns: minmax(0, 1fr); } }
+.tag { display: inline-block; font: 500 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+       padding: 4px 7px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); }
+.tag.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.tag.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.tag.hold { color: var(--hold); border-color: color-mix(in srgb, var(--hold) 45%, transparent); }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
+.controls .lab { font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+button.chip { font: 500 13px/1 var(--body); color: var(--ink-2); background: transparent; border: 1px solid var(--rule);
+              border-radius: 999px; padding: 7px 12px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+button.chip:hover { color: var(--ink); border-color: var(--ink-3); }
+button.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.chip .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+button.btn { font: 600 13px/1 var(--body); background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+             padding: 9px 14px; cursor: pointer; }
+button.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* tables */
+.tablewrap { overflow-x: auto; margin: 14px 0; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { padding: 7px 9px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+table.data th:first-child, table.data td:first-child, table.data .l { text-align: left; }
+table.data thead th { font: 600 12px/1.3 var(--body); color: var(--ink-2); border-bottom: 1.5px solid var(--ink-3); background: var(--wash); position: sticky; top: 0; }
+table.data thead th.sort { cursor: pointer; user-select: none; }
+table.data thead th.sort::after { content: " \2195"; color: var(--ink-3); font-weight: 400; }
+table.data tr.me td { font-weight: 600; background: color-mix(in srgb, var(--accent) 9%, transparent); }
+table.data td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; }
+td.better { color: var(--good); } td.worse { color: var(--bad); } td.tie { color: var(--ink-3); }
+
+/* charts */
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+svg.chart text { fill: var(--ink-2); font: 11px var(--body); }
+svg.chart .grid { stroke: var(--rule); stroke-width: 1; }
+svg.chart .axis { stroke: var(--ink-3); stroke-width: 1; }
+svg.chart rect.bar { transform-box: fill-box; transform-origin: 50% 100%; animation: growY .8s cubic-bezier(.2, .7, .2, 1); }
+svg.chart rect.barx { transform-box: fill-box; transform-origin: 0 50%; animation: growX .9s cubic-bezier(.2, .7, .2, 1); }
+svg.chart path.draw { animation: draw 1.1s ease-out; }
+svg.chart .fade { animation: fade .6s ease-out .5s backwards; }
+@keyframes growY { from { transform: scaleY(0); } }
+@keyframes growX { from { transform: scaleX(0); } }
+@keyframes draw { from { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); } to { stroke-dasharray: var(--len); stroke-dashoffset: 0; } }
+@keyframes fade { from { opacity: 0; } }
+svg.chart .err { stroke: var(--ink-2); stroke-width: 1; }
+svg.chart path.ln { fill: none; stroke-width: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--paper); font: 12.5px/1.4 var(--body);
+       padding: 7px 9px; border-radius: 6px; max-width: 260px; opacity: 0; transition: opacity .12s; }
+.tip b { font-weight: 600; }
+
+/* graph diagrams */
+svg.rag text { font: 600 13px var(--display); fill: var(--ink); }
+svg.rag .node-p { fill: var(--panel); stroke: var(--ink); stroke-width: 1.6; }
+svg.rag .node-r { fill: var(--wash); stroke: var(--ink-2); stroke-width: 1.6; }
+svg.rag .edge { stroke-width: 2.2; fill: none; transition: opacity .35s, stroke .35s; }
+svg.rag .e-hold { stroke: var(--ink-2); }
+svg.rag .e-wait { stroke: var(--bad); stroke-dasharray: 6 5; animation: dash 1s linear infinite; }
+svg.rag .e-queue { stroke: var(--hold); stroke-dasharray: 2 5; }
+svg.rag .flash { animation: flash 1.1s ease-out 1; }
+svg.rag .deadring { fill: none; stroke: var(--bad); stroke-width: 2; opacity: 0; }
+svg.rag .deadring.on { animation: ring 1.6s ease-out infinite; }
+@keyframes dash { to { stroke-dashoffset: -22; } }
+@keyframes flash { 0% { fill: var(--bad); } 100% { fill: var(--panel); } }
+@keyframes ring { 0% { opacity: .9; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.25); } }
+.steptext { min-height: 54px; font-size: 14.5px; margin: 10px 0 0; max-width: none; }
+.stepper { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.stepper .count { font: 500 12px var(--mono); color: var(--ink-3); margin-left: 6px; }
+
+/* hero comparison animation */
+.duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 600px) { .duo { grid-template-columns: minmax(0, 1fr); } }
+.duo .pane { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; background: var(--panel); }
+.duo .pane h4 { margin: 0 0 4px; font: 600 15px var(--display); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+/* pipeline */
+svg.flow .box { fill: var(--panel); stroke: var(--rule); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
+svg.flow .box.on { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+svg.flow .box.ok.on { stroke: var(--good); fill: color-mix(in srgb, var(--good) 12%, var(--panel)); }
+svg.flow .box.no.on { stroke: var(--hold); fill: color-mix(in srgb, var(--hold) 14%, var(--panel)); }
+svg.flow text { font: 12.5px var(--body); fill: var(--ink); }
+svg.flow text.t { font: 600 13px var(--display); }
+svg.flow .wire { stroke: var(--ink-3); stroke-width: 1.4; fill: none; }
+svg.flow .wire.on { stroke: var(--accent); stroke-width: 2.2; }
+svg.flow .dot { fill: var(--accent); }
+.scrollx { overflow-x: auto; }
+.scrollx svg.flow { min-width: 620px; }
+
+/* method cards */
+.methods { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 18px 0; }
+.mcard { border: 1px solid var(--rule); border-radius: 10px; padding: 14px; background: var(--panel); min-width: 0; }
+.mcard .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mcard .top i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.mcard h4 { margin: 0; font: 600 16px var(--display); }
+.mcard .kind { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+.mcard p { font-size: 13.5px; margin: 0 0 6px; color: var(--ink-2); }
+.mcard .needs { font-size: 12.5px; color: var(--ink); }
+
+.callout { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin: 18px 0; }
+.callout p { margin-bottom: 6px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 760px) { .grid3 { grid-template-columns: minmax(0, 1fr); } }
+.kv { border-top: 2px solid var(--ink); padding-top: 10px; }
+.kv .v { font: 600 26px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.kv .k { font-size: 13px; color: var(--ink-2); }
+footer { margin-top: 70px; border-top: 1px solid var(--rule); padding-top: 18px; font-size: 13px; color: var(--ink-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+
+<div class="shell">
+  <nav class="rail" aria-label="Contents">
+    <a class="brand" href="#overview">SAGE<small>Deadlock risk lab</small></a>
+    <ol id="toc">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#problem">The deadlock problem</a></li>
+      <li><a href="#strategies">Ways to handle it</a></li>
+      <li><a href="#how">How SAGE decides</a></li>
+      <li><a href="#model">Learning behaviour</a></li>
+      <li><a href="#v1">From v1 to v2</a></li>
+      <li><a href="#results">Results: all methods</a></li>
+      <li><a href="#sizes">System sizes</a></li>
+      <li><a href="#versions">v1 against v2</a></li>
+      <li><a href="#warnings">Early warning and drift</a></li>
+      <li><a href="#cost">Decision cost</a></li>
+      <li><a href="#verify">Verification</a></li>
+      <li><a href="#limits">Limits and reproduction</a></li>
+    </ol>
+    <div class="theme" role="group" aria-label="Theme">
+      <button class="chip" id="th-auto" aria-pressed="true">Auto</button>
+      <button class="chip" id="th-light" aria-pressed="false">Light</button>
+      <button class="chip" id="th-dark" aria-pressed="false">Dark</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ============================================================ overview -->
+    <section id="overview" class="hero">
+      <p class="eyebrow">BCSE303P Operating Systems Lab · VIT Vellore</p>
+      <h1>SAGE: deadlock avoidance that learns what processes will do next</h1>
+      <p class="sub">Simulated Ahead-of-Time Grant Evaluator · Harvi Bhavin Patel (24BCE2557) · Srishti Saluja (24BCE2587) · Supervisor: Perepi Rajarajeswari</p>
+      <p class="lede">Before granting a resource, SAGE simulates short futures of the system from each process's learned behaviour and queues the request if too many of those futures end in a deadlock. It needs no declared maximum demand, which the classic Banker's Algorithm requires and real systems rarely have.</p>
+      <div class="stats" id="hero-stats"></div>
+      <div class="fig">
+        <div class="duo">
+          <div class="pane"><h4>Without SAGE <span class="tag bad" id="duo-a-tag">deadlock</span></h4><svg class="rag" id="duo-a" viewBox="0 0 320 190" role="img" aria-label="Two processes deadlock without SAGE"></svg></div>
+          <div class="pane"><h4>With SAGE <span class="tag good" id="duo-b-tag">safe</span></h4><svg class="rag" id="duo-b" viewBox="0 0 320 190" role="img" aria-label="SAGE holds the risky request"></svg></div>
+        </div>
+        <p class="cap">The same four requests, replayed continuously. Left: every request is granted; P1 and P2 each hold one resource and wait for the other's, a cycle that neither can leave. Right: SAGE sees that granting P2 the scanner leads to that cycle in its simulated futures and holds the request (amber) until P1 has finished.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ problem -->
+    <section id="problem">
+      <p class="eyebrow">Background</p>
+      <h2>The deadlock problem</h2>
+      <p>A deadlock is a set of processes in which each one waits for a resource that another one in the set holds. None of them can move, so none of them will ever release what it holds. With single-instance resources, a deadlock is exactly a cycle in the <b>wait-for graph</b>: an arrow from each waiting process to the process holding what it waits for.</p>
+      <p>Four conditions must hold at once (Coffman et al.): <b>mutual exclusion</b> (a resource has one holder), <b>hold and wait</b> (a process keeps what it has while asking for more), <b>no preemption</b> (resources are not taken away) and <b>circular wait</b>. Every deadlock-handling method breaks one of these, or detects the result and undoes it.</p>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Method"><span class="lab">Method</span><span id="rag-methods"></span></div>
+        <svg class="rag" id="rag" viewBox="70 0 420 250" role="img" aria-label="Resource allocation graph of the printer and scanner example"></svg>
+        <p class="steptext" id="rag-text"></p>
+        <div class="stepper">
+          <button class="btn ghost" id="rag-prev">Back</button>
+          <button class="btn" id="rag-next">Next step</button>
+          <button class="btn ghost" id="rag-play">Play</button>
+          <span class="count" id="rag-count"></span>
+        </div>
+        <p class="cap"><b>The classic example.</b> P1 (started first, so older) and P2 both need the printer R1 and the scanner R2, but take them in opposite orders. Grey arrows: resource held by a process. Red dashed: a process waiting for a held resource. Amber dotted: a request the method has deliberately queued. Pick a method to see what it does at each step; the behaviour follows the textbook definitions and the project's own verification cases.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ strategies -->
+    <section id="strategies">
+      <p class="eyebrow">Methods compared</p>
+      <h2>Ways to handle deadlocks</h2>
+      <p>Operating systems texts group the methods into <b>prevention</b> (make a deadlock structurally impossible), <b>avoidance</b> (only grant requests that keep the system safe) and <b>detection with recovery</b> (let it happen, notice it, undo it). SAGE is an avoidance method that learns instead of being told. All eight methods below run in the same simulator on the same workloads and seeds.</p>
+      <div class="methods" id="method-cards"></div>
+    </section>
+
+    <!-- ============================================================ how -->
+    <section id="how">
+      <p class="eyebrow">How it works</p>
+      <h2>How SAGE decides</h2>
+      <p>Every request for a <b>free</b> resource reaches SAGE (a request for a held resource simply blocks, as in every method). SAGE first asks whether it can trust its model of the requesting process, then takes one of two routes.</p>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Process type"><span class="lab">Trace a request from</span><span id="flow-chips"></span></div>
+        <div class="scrollx"><svg class="flow" id="flow" viewBox="0 0 790 290" role="img" aria-label="SAGE decision flow"></svg></div>
+        <p class="steptext" id="flow-text"></p>
+      </div>
+      <h3>The simulation route: K futures, H steps</h3>
+      <p>For a process it can predict, SAGE copies the live state K = 100 times, applies the hypothetical grant in each copy, and plays every copy forward for H = 30 events. In each future the scheduler picks one runnable process at random, as the real scheduler does, and that process does what its behaviour model says is likely next, limited to what it can actually do with what it holds. Requests that SAGE has already queued stay queued. A future counts as deadlocked if the requester ends up on a wait-for cycle. The <b>risk</b> is the share of deadlocked futures; the request is queued if the risk is at least τ = 0.10. The simulation stops as soon as the answer is certain.</p>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Request"><span class="lab">Request</span><span id="roll-chips"></span><button class="btn ghost" id="roll-again">Simulate again</button></div>
+        <canvas id="roll" width="1200" height="380" style="width:100%;height:auto;max-width:100%" aria-label="Animated futures"></canvas>
+        <p class="steptext" id="roll-text"></p>
+        <p class="cap"><b>Illustration</b> with 40 futures: each line is one simulated future of the system after the grant; red ends mark futures where the requester became deadlocked. The numbers in the results sections come from the real simulator, not from this drawing.</p>
+      </div>
+      <h3>The safety-check route: learned claims</h3>
+      <p>For a process SAGE cannot predict (a near-random process, too little history, or behaviour that has just changed), simulation would be noise. SAGE instead runs a Banker's-style safety check, using <b>learned claims</b> in place of declared maxima: the set of resources the process has ever been seen to request, from its own request log. A process already holding as many resources as it has ever held at once is taken to release before it asks for more. Nothing has to be declared in advance.</p>
+      <h3>Keeping every process moving</h3>
+      <ul class="tight">
+        <li><b>Starvation guard.</b> If a process has waited 400 events in one go, or gone 900 events without finishing a life, processes that hold nothing are held back until it gets through. Holding back an idle process creates no hold-and-wait, so this never causes a deadlock.</li>
+        <li><b>Stall handler.</b> If every process is waiting, the queued request with the lowest freshly computed risk is released (overdue requests first).</li>
+        <li><b>Recovery.</b> If a deadlock does form, the member rolled back least often is chosen as the victim and rolled back only to the last point where it held nothing, so finished work is kept.</li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ model -->
+    <section id="model">
+      <p class="eyebrow">Learning</p>
+      <h2>Learning what each process will do</h2>
+      <p>Each process slot has its own behaviour model, trained online from its request log: every request, release and exit it emits.</p>
+      <div class="grid3">
+        <div class="kv"><div class="v">Markov chain</div><div class="k">The core model: the probability of each next event given the last one, restricted to events the process can perform with what it holds (it cannot release what it does not hold).</div></div>
+        <div class="kv"><div class="v">Two context tables</div><div class="k">Indexed by the <i>episode peak</i> (most resources held since it last held nothing) and the <i>episode count</i> (episodes finished this life). They tell "another level / cycle" from "exit". A process switches to one only after it has out-predicted the plain chain.</div></div>
+        <div class="kv"><div class="v">Confidence checks</div><div class="k"><b>Cold</b>: fewer than 20 observed events. <b>Uncertain</b>: the fitted model is close to random. <b>Drift</b>: a CUSUM of surprise crosses its threshold, meaning the behaviour has changed. Any of these sends the request to the safety-check route.</div></div>
+      </div>
+      <div class="fig">
+        <h3 style="margin-top:0">How well the model predicts unseen process lives</h3>
+        <div class="controls" role="group" aria-label="History"><span class="lab">History before testing</span><span id="acc-chips"></span></div>
+        <div class="tablewrap"><table class="data" id="acc-table"></table></div>
+        <p class="cap">The model learns the first lives of a process type and then predicts fresh lives without learning from them; both versions see exactly the same lives (20 seeds). A fixed-pattern process repeats its cycle a random 4 to 8 times, so with only three lives of history no model can foresee its exit: the two versions predict identically there.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ v1 -->
+    <section id="v1">
+      <p class="eyebrow">History</p>
+      <h2>From v1 to v2</h2>
+      <p>The first version ran and passed its tests, but its results were weak: on random workloads it caused more deadlocks than simply granting everything, and it queued about a third of all requests. Tracing every deadlock back to the grant that created it showed where they came from.</p>
+      <div class="fig">
+        <div id="src-chart"></div>
+        <p class="cap">Deadlocks over seeds 0 to 4, split by how the resources on the deadlock cycle were granted. In v1 almost none came from SAGE's own risk decisions: they came from the blind fallback (which granted unpredictable processes' requests unchecked) and from the stall handler (which used stale scores).</p>
+      </div>
+      <h3>What changed</h3>
+      <div class="tablewrap"><table class="data" id="changes"></table></div>
+    </section>
+
+    <!-- ============================================================ results -->
+    <section id="results">
+      <p class="eyebrow">Evaluation</p>
+      <h2>Results against every method</h2>
+      <p id="results-intro"></p>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Metric"><span class="lab">Metric</span><span id="metric-chips"></span></div>
+        <div id="main-chart"></div>
+        <div class="legend" id="main-legend"></div>
+        <p class="cap" id="main-cap"></p>
+      </div>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Workload"><span class="lab">Workload</span><span id="fam-chips"></span></div>
+        <div class="tablewrap"><table class="data" id="main-table"></table></div>
+        <p class="cap">Mean over the seeds of each workload (± standard error for throughput). Rates are per 1,000 events. Click a column heading to sort. <b>Turnaround</b> is the number of events from the start of a process life to its completion, waiting included: lower means each process finishes sooner.</p>
+      </div>
+      <h3>Ranking by completed work</h3>
+      <div class="tablewrap"><table class="data" id="rank-table"></table></div>
+      <div class="callout" id="results-reading"></div>
+    </section>
+
+    <!-- ============================================================ sizes -->
+    <section id="sizes">
+      <p class="eyebrow">Robustness</p>
+      <h2>System sizes and contention</h2>
+      <p>The same comparison at four system sizes, from 4 processes and 6 resources to 10 processes and 12 resources, plus a high-contention setting with more processes than resources (8 and 6). Values are averaged over the four main workloads, 20 seeds each.</p>
+      <div class="fig">
+        <div class="controls" role="group" aria-label="Metric"><span class="lab">Metric</span><span id="size-chips"></span></div>
+        <div id="size-chart"></div>
+        <div class="legend" id="size-legend"></div>
+      </div>
+      <div class="tablewrap"><table class="data" id="size-table"></table></div>
+      <div class="callout" id="size-reading"></div>
+    </section>
+
+    <!-- ============================================================ versions -->
+    <section id="versions">
+      <p class="eyebrow">Version comparison</p>
+      <h2>SAGE v1 against SAGE v2</h2>
+      <p>Each version runs from its own code on the same seeds. Three seed sets were used: 0 to 19 (used while developing v2), 100 to 119 (held out during the first round of changes) and 200 to 259 (never used before the final check).</p>
+      <div class="tablewrap"><table class="data" id="sets-table"></table></div>
+      <h3>Every comparison, counted</h3>
+      <p id="score-intro"></p>
+      <div class="controls" role="group" aria-label="Filter"><span class="lab">Show</span><span id="score-chips"></span></div>
+      <div class="tablewrap" style="max-height:440px;overflow:auto"><table class="data" id="score-table"></table></div>
+      <div class="callout" id="score-reading"></div>
+    </section>
+
+    <!-- ============================================================ warnings -->
+    <section id="warnings">
+      <p class="eyebrow">Prediction quality</p>
+      <h2>Early warning and behaviour drift</h2>
+      <p>In <b>shadow mode</b> SAGE watches a system that grants everything and only reports the requests it would have queued. Both versions watch the <i>same</i> trace, so they face the same deadlocks. A deadlock is <i>warnable</i> if a process in its cycle made any request since the previous deadlock; otherwise no per-request predictor can see it coming.</p>
+      <div class="tablewrap"><table class="data" id="warn-table"></table></div>
+      <h3>When behaviour changes</h3>
+      <p>In the behaviour-shift workload, half of the processes change their acquisition order at event 600, creating a conflict that did not exist before. v2 checks a CUSUM of each event's surprise after every event, so it flags a predictable process after two or three events it has never shown before.</p>
+      <div class="tablewrap"><table class="data" id="shift-table"></table></div>
+      <h3>Sensitivity to the threshold τ</h3>
+      <div class="fig">
+        <div class="figrow"><div id="sweep-dl"></div><div id="sweep-q"></div></div>
+        <div class="legend"><span><i style="background:var(--m-sage_v1)"></i>SAGE v1</span><span><i style="background:var(--m-sage)"></i>SAGE v2</span></div>
+        <p class="cap">Mixed workload, seeds 0 to 4. τ above 1 switches the simulation gate off; v2 still checks unpredictable processes against learned claims there.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ cost -->
+    <section id="cost">
+      <p class="eyebrow">Cost</p>
+      <h2>Decision cost</h2>
+      <p>The classic methods decide in microseconds; SAGE takes milliseconds because it simulates. v2 stops simulating once the answer is certain, skips futures whose outcome is settled, and decides unpredictable processes with a safety check instead of a simulation. Both versions were timed in the same session, alternately, best of two, each cell averaged over five seeds.</p>
+      <div class="tablewrap"><table class="data" id="lat-table"></table></div>
+      <div class="tablewrap"><table class="data" id="latfam-table"></table></div>
+    </section>
+
+    <!-- ============================================================ verification -->
+    <section id="verify">
+      <p class="eyebrow">Correctness</p>
+      <h2>Verification</h2>
+      <p>Known-answer checks run with <code>python tests/verify.py</code>. Each one sets up a situation whose correct outcome is known from the textbook or from first principles.</p>
+      <div class="tablewrap"><table class="data" id="verify-table"></table></div>
+    </section>
+
+    <!-- ============================================================ limits -->
+    <section id="limits">
+      <p class="eyebrow">Scope</p>
+      <h2>Limits and how to reproduce</h2>
+      <ul class="tight">
+        <li>Banker's Algorithm with true maximum demands never deadlocks; SAGE keeps deadlocks low without that information but does not reach zero.</li>
+        <li>On near-random workloads SAGE v2’s deadlock rate grows with the size of the system (about 1 per 1,000 events at 4 processes, about 10 at 10 processes; Section 08).</li>
+        <li>Learned claims cover only resources a process has used before; a process that starts using a new resource is covered after its first use.</li>
+        <li>The workloads are synthetic and resources are single-instance; results on real traces have not been measured.</li>
+        <li>SAGE's settings were chosen on these workload families; the separate seed sets guard against fitting to particular seeds, not to the families themselves.</li>
+        <li>A SAGE decision costs milliseconds: suitable for admission-style decisions, too slow for per-instruction locking.</li>
+      </ul>
+      <h3>Reproducing every number on this page</h3>
+      <div class="fig mono" style="font-size:13.5px;line-height:1.7;overflow-x:auto">
+        <div>python tests/verify.py&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# known-answer checks</div>
+        <div>python -m experiments.run_all&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# SAGE experiments: results/*.csv, plots/*.png</div>
+        <div>python -m experiments.compare_all&nbsp;# all methods, all workloads and system sizes</div>
+      </div>
+      <footer>SAGE · Simulated Ahead-of-Time Grant Evaluator · BCSE303P Operating Systems Lab (Concurrency and Scheduling Track), Vellore Institute of Technology. All figures are read from the project's result files.</footer>
+    </section>
+  </main>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>const DATA = {"main":{"wound_wait":{"escalating":{"throughput":[66.32,1.7465],"turnaround":[93.0114,2.3253],"deadlock_rate":[0.0,0.0],"rollback_rate":[134.3067,3.5162],"wasted_rate":[182.82,4.6812],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"fixed":{"throughput":[21.2267,0.4002],"turnaround":[263.5635,4.5643],"deadlock_rate":[0.0,0.0],"rollback_rate":[192.9667,3.9422],"wasted_rate":[316.1,6.2711],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0003,0.0]},"mixed":{"throughput":[27.08,0.8415],"turnaround":[216.9701,5.9005],"deadlock_rate":[0.0,0.0],"rollback_rate":[181.36,2.981],"wasted_rate":[313.3333,5.0695],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"shift":{"throughput":[20.1067,0.1171],"turnaround":[266.4763,1.3963],"deadlock_rate":[0.0,0.0],"rollback_rate":[293.0333,0.789],"wasted_rate":[372.1867,1.4671],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0003,0.0]},"bursty":{"throughput":[11.7667,0.0977],"turnaround":[431.6091,3.1578],"deadlock_rate":[0.0,0.0],"rollback_rate":[180.5533,1.1914],"wasted_rate":[370.0867,3.3915],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]}},"sage_v1":{"escalating":{"throughput":[92.82,2.1684],"turnaround":[60.5787,1.9318],"deadlock_rate":[2.92,0.4464],"rollback_rate":[2.92,0.4464],"wasted_rate":[28.18,4.2775],"queue_rate":[36.5437,2.4414],"starved":[0.13,0.0506],"latency_ms":[11.5058,0.2289]},"fixed":{"throughput":[31.5067,0.4182],"turnaround":[164.0055,3.4136],"deadlock_rate":[1.8933,0.3987],"rollback_rate":[1.8933,0.3987],"wasted_rate":[23.3467,4.3393],"queue_rate":[19.6055,1.9647],"starved":[0.29,0.0808],"latency_ms":[6.3377,0.2556]},"mixed":{"throughput":[49.3933,2.1837],"turnaround":[105.6875,5.0735],"deadlock_rate":[8.1733,0.9172],"rollback_rate":[8.1733,0.9172],"wasted_rate":[99.0067,7.3389],"queue_rate":[34.9617,1.7198],"starved":[0.48,0.0772],"latency_ms":[10.3052,0.2447]},"shift":{"throughput":[29.46,0.1545],"turnaround":[180.8242,0.9258],"deadlock_rate":[6.82,0.2116],"rollback_rate":[6.82,0.2116],"wasted_rate":[76.2867,2.8063],"queue_rate":[34.2251,0.2004],"starved":[0.0,0.0],"latency_ms":[6.5837,0.1436]},"bursty":{"throughput":[11.58,0.192],"turnaround":[379.1042,5.2799],"deadlock_rate":[22.9333,0.6564],"rollback_rate":[22.9333,0.6564],"wasted_rate":[365.2667,7.6827],"queue_rate":[36.943,0.5212],"starved":[0.22,0.0484],"latency_ms":[11.5229,0.0562]}},"bankers":{"escalating":{"throughput":[88.76,1.7162],"turnaround":[67.8349,1.3596],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[11.3298,0.7893],"starved":[0.0,0.0],"latency_ms":[0.0931,0.0007]},"fixed":{"throughput":[31.84,0.3388],"turnaround":[173.6042,1.8336],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[5.7262,0.635],"starved":[0.05,0.0219],"latency_ms":[0.0433,0.0007]},"mixed":{"throughput":[52.0867,1.3354],"turnaround":[108.145,2.9842],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[15.2151,0.4969],"starved":[0.14,0.0403],"latency_ms":[0.044,0.0008]},"shift":{"throughput":[32.3467,0.1155],"turnaround":[170.7764,0.6347],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[14.3279,0.1089],"starved":[0.0,0.0],"latency_ms":[0.0462,0.0008]},"bursty":{"throughput":[19.4467,0.0848],"turnaround":[277.123,1.0808],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[41.6774,0.1642],"starved":[0.0,0.0],"latency_ms":[0.0322,0.0006]}},"sage":{"escalating":{"throughput":[95.2533,2.1472],"turnaround":[62.3955,1.5892],"deadlock_rate":[1.2267,0.1795],"rollback_rate":[1.2267,0.1795],"wasted_rate":[2.4667,0.3557],"queue_rate":[10.2323,0.688],"starved":[0.0,0.0],"latency_ms":[7.4849,0.3571]},"fixed":{"throughput":[32.42,0.3835],"turnaround":[161.8975,2.2557],"deadlock_rate":[0.5933,0.1253],"rollback_rate":[0.5933,0.1253],"wasted_rate":[0.9867,0.2053],"queue_rate":[7.0777,0.869],"starved":[0.02,0.0141],"latency_ms":[4.9486,0.2316]},"mixed":{"throughput":[52.58,2.0311],"turnaround":[112.0262,3.701],"deadlock_rate":[2.04,0.2326],"rollback_rate":[2.04,0.2326],"wasted_rate":[5.2733,0.5409],"queue_rate":[20.1545,0.6757],"starved":[0.0,0.0],"latency_ms":[3.6365,0.0732]},"shift":{"throughput":[32.1467,0.1646],"turnaround":[162.8647,1.3302],"deadlock_rate":[1.24,0.0614],"rollback_rate":[1.24,0.0614],"wasted_rate":[1.9133,0.1015],"queue_rate":[6.4203,0.1074],"starved":[0.0,0.0],"latency_ms":[4.7573,0.1665]},"bursty":{"throughput":[19.2533,0.0838],"turnaround":[280.3281,1.0608],"deadlock_rate":[0.9733,0.1189],"rollback_rate":[0.9733,0.1189],"wasted_rate":[3.5733,0.4046],"queue_rate":[33.1576,0.1629],"starved":[0.0,0.0],"latency_ms":[0.0923,0.0035]}},"bankers_nodecl":{"escalating":{"throughput":[81.8933,1.5802],"turnaround":[73.7969,1.3443],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[45.3335,0.5106],"starved":[0.0,0.0],"latency_ms":[0.0667,0.0002]},"fixed":{"throughput":[31.06,0.3272],"turnaround":[183.1079,1.7087],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[35.8556,0.4334],"starved":[0.0,0.0],"latency_ms":[0.0283,0.0005]},"mixed":{"throughput":[42.5267,0.7677],"turnaround":[136.3954,2.3172],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[39.977,0.3548],"starved":[0.0,0.0],"latency_ms":[0.0322,0.0005]},"shift":{"throughput":[29.66,0.1348],"turnaround":[189.6143,0.7386],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[27.8953,0.2923],"starved":[0.0,0.0],"latency_ms":[0.0401,0.0006]},"bursty":{"throughput":[19.3867,0.0937],"turnaround":[278.8956,1.0442],"deadlock_rate":[0.0,0.0],"rollback_rate":[0.0,0.0],"wasted_rate":[0.0,0.0],"queue_rate":[40.0566,0.1428],"starved":[0.0,0.0],"latency_ms":[0.0367,0.0004]}},"timeout":{"escalating":{"throughput":[83.3933,2.1238],"turnaround":[73.8877,1.9902],"deadlock_rate":[17.64,1.4916],"rollback_rate":[37.8067,3.1468],"wasted_rate":[34.1267,3.0654],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0008,0.0001]},"fixed":{"throughput":[29.6,0.5729],"turnaround":[185.9166,4.0825],"deadlock_rate":[18.92,2.0605],"rollback_rate":[42.0,4.7853],"wasted_rate":[38.5333,4.9199],"queue_rate":[0.0,0.0],"starved":[0.05,0.0219],"latency_ms":[0.0003,0.0]},"mixed":{"throughput":[44.7533,1.5664],"turnaround":[133.4506,4.4165],"deadlock_rate":[22.04,1.4207],"rollback_rate":[45.7267,3.0333],"wasted_rate":[58.6133,3.8438],"queue_rate":[0.0,0.0],"starved":[0.02,0.0141],"latency_ms":[0.0004,0.0]},"shift":{"throughput":[22.3533,0.1111],"turnaround":[194.6799,1.8428],"deadlock_rate":[52.3933,0.2304],"rollback_rate":[197.1733,0.6313],"wasted_rate":[90.4467,0.5481],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"bursty":{"throughput":[16.7333,0.1223],"turnaround":[316.79,1.8847],"deadlock_rate":[21.7267,0.5433],"rollback_rate":[42.5733,1.2008],"wasted_rate":[77.98,3.1429],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0009,0.0001]}},"reactive":{"escalating":{"throughput":[82.7667,1.8938],"turnaround":[73.8667,1.7672],"deadlock_rate":[20.8867,1.7397],"rollback_rate":[20.8867,1.7397],"wasted_rate":[33.8533,2.7824],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0006,0.0]},"fixed":{"throughput":[29.6933,0.4599],"turnaround":[189.9865,2.9987],"deadlock_rate":[27.34,2.7987],"rollback_rate":[27.34,2.7987],"wasted_rate":[40.76,4.3524],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0003,0.0]},"mixed":{"throughput":[43.36,1.2065],"turnaround":[137.4348,3.7827],"deadlock_rate":[26.2267,1.8336],"rollback_rate":[26.2267,1.8336],"wasted_rate":[53.6867,3.9377],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"shift":{"throughput":[25.36,0.1092],"turnaround":[207.7702,1.1866],"deadlock_rate":[80.8933,0.2854],"rollback_rate":[80.8933,0.2854],"wasted_rate":[121.0933,0.4302],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"bursty":{"throughput":[17.3467,0.0894],"turnaround":[306.0711,1.4195],"deadlock_rate":[22.62,0.4976],"rollback_rate":[22.62,0.4976],"wasted_rate":[66.26,2.0586],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0006,0.0]}},"wait_die":{"escalating":{"throughput":[45.0867,1.6208],"turnaround":[139.7156,4.5541],"deadlock_rate":[0.0,0.0],"rollback_rate":[386.02,8.2323],"wasted_rate":[92.9467,4.5121],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0006,0.0]},"fixed":{"throughput":[15.5933,0.3979],"turnaround":[347.0568,8.1644],"deadlock_rate":[0.0,0.0],"rollback_rate":[384.9333,6.4258],"wasted_rate":[116.3533,5.6103],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0003,0.0]},"mixed":{"throughput":[22.0933,0.8397],"turnaround":[267.4736,10.0202],"deadlock_rate":[0.0,0.0],"rollback_rate":[370.8,6.2302],"wasted_rate":[129.58,3.8816],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"shift":{"throughput":[11.0267,0.0828],"turnaround":[435.7943,3.3781],"deadlock_rate":[0.0,0.0],"rollback_rate":[576.9333,1.5325],"wasted_rate":[49.82,0.7211],"queue_rate":[0.0,0.0],"starved":[0.0,0.0],"latency_ms":[0.0004,0.0]},"bursty":{"throughput":[8.1533,0.1104],"turnaround":[578.8698,5.7783],"deadlock_rate":[0.0,0.0],"rollback_rate":[356.1667,2.6578],"wasted_rate":[195.4,3.3085],"queue_rate":[0.0,0.0],"starved":[0.01,0.01],"latency_ms":[0.0006,0.0]}}},"main_seeds":100,"sizes":{"bankers":{"small (4 x 6)":{"fixed":{"throughput":32.0,"turnaround":120.4846,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":10.516,"starved":0.0,"latency_ms":0.0384},"bursty":{"throughput":19.9,"turnaround":186.8634,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":37.8656,"starved":0.0,"latency_ms":0.035},"escalating":{"throughput":87.8,"turnaround":46.8061,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":15.4068,"starved":0.0,"latency_ms":0.043},"mixed":{"throughput":47.5,"turnaround":86.3509,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":15.1521,"starved":0.0,"latency_ms":0.0324}},"default (6 x 8)":{"fixed":{"throughput":31.5667,"turnaround":175.6116,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":6.8631,"starved":0.05,"latency_ms":0.0438},"bursty":{"throughput":19.2667,"turnaround":276.2481,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":41.261,"starved":0.0,"latency_ms":0.0321},"escalating":{"throughput":86.4667,"turnaround":68.5387,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":11.1396,"starved":0.0,"latency_ms":0.0497},"mixed":{"throughput":55.2,"turnaround":101.1675,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":14.1785,"starved":0.2,"latency_ms":0.0726}},"large (10 x 12)":{"fixed":{"throughput":30.3667,"turnaround":281.4276,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":7.7258,"starved":0.2,"latency_ms":0.153},"bursty":{"throughput":18.2667,"turnaround":426.4142,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":48.6952,"starved":0.0,"latency_ms":0.0461},"escalating":{"throughput":91.8667,"turnaround":103.51,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":11.1681,"starved":0.0,"latency_ms":0.0851},"mixed":{"throughput":52.3667,"turnaround":151.5687,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":11.0999,"starved":1.45,"latency_ms":0.1546}},"high contention (8 x 6)":{"fixed":{"throughput":31.0667,"turnaround":225.7123,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":13.2844,"starved":0.1,"latency_ms":0.0542},"bursty":{"throughput":18.8667,"turnaround":367.2744,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":39.1464,"starved":0.0,"latency_ms":0.035},"escalating":{"throughput":92.2,"turnaround":84.2514,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":24.6223,"starved":0.0,"latency_ms":0.1067},"mixed":{"throughput":52.3667,"turnaround":133.5509,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":18.7106,"starved":0.4,"latency_ms":0.0761}}},"bankers_nodecl":{"small (4 x 6)":{"fixed":{"throughput":30.9667,"turnaround":124.4083,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":32.6777,"starved":0.0,"latency_ms":0.0289},"bursty":{"throughput":19.9667,"turnaround":187.1788,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":37.7506,"starved":0.0,"latency_ms":0.0339},"escalating":{"throughput":82.5667,"turnaround":49.9803,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":43.4587,"starved":0.0,"latency_ms":0.0341},"mixed":{"throughput":42.6,"turnaround":93.3307,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":34.5407,"starved":0.0,"latency_ms":0.0276}},"default (6 x 8)":{"fixed":{"throughput":30.4,"turnaround":184.4424,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":36.0813,"starved":0.0,"latency_ms":0.0326},"bursty":{"throughput":19.4667,"turnaround":278.5764,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":39.6399,"starved":0.0,"latency_ms":0.032},"escalating":{"throughput":79.0667,"turnaround":75.0816,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":44.2046,"starved":0.0,"latency_ms":0.0328},"mixed":{"throughput":45.5667,"turnaround":129.95,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":40.9843,"starved":0.0,"latency_ms":0.0325}},"large (10 x 12)":{"fixed":{"throughput":29.3,"turnaround":303.7876,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":37.8347,"starved":0.0,"latency_ms":0.0911},"bursty":{"throughput":18.4,"turnaround":454.3328,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":41.5452,"starved":0.0,"latency_ms":0.0418},"escalating":{"throughput":83.3,"turnaround":115.9848,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":48.2268,"starved":0.0,"latency_ms":0.0397},"mixed":{"throughput":41.6,"turnaround":220.8262,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":41.8129,"starved":0.0,"latency_ms":0.0657}},"high contention (8 x 6)":{"fixed":{"throughput":30.0,"turnaround":244.1452,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":32.4897,"starved":0.0,"latency_ms":0.0791},"bursty":{"throughput":18.8333,"turnaround":367.9201,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":38.4239,"starved":0.0,"latency_ms":0.0669},"escalating":{"throughput":80.2,"turnaround":99.0393,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":44.7111,"starved":0.0,"latency_ms":0.0782},"mixed":{"throughput":39.7333,"turnaround":187.2982,"deadlock_rate":0.0,"rollback_rate":0.0,"wasted_rate":0.0,"queue_rate":38.175,"starved":0.0,"latency_ms":0.0369}}},"reactive":{"small (4 x 6)":{"fixed":{"throughput":29.6667,"turnaround":130.8981,"deadlock_rate":28.6667,"rollback_rate":28.6667,"wasted_rate":40.3333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":18.1,"turnaround":203.704,"deadlock_rate":20.1,"rollback_rate":20.1,"wasted_rate":60.3667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":81.5333,"turnaround":51.9584,"deadlock_rate":26.9333,"rollback_rate":26.9333,"wasted_rate":43.5,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":41.0333,"turnaround":98.5578,"deadlock_rate":30.2,"rollback_rate":30.2,"wasted_rate":66.5333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004}},"default (6 x 8)":{"fixed":{"throughput":29.0,"turnaround":194.3803,"deadlock_rate":35.6333,"rollback_rate":35.6333,"wasted_rate":51.5,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":17.2667,"turnaround":307.2665,"deadlock_rate":23.1333,"rollback_rate":23.1333,"wasted_rate":72.5333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":80.3667,"turnaround":74.8216,"deadlock_rate":20.1,"rollback_rate":20.1,"wasted_rate":31.2667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":45.8,"turnaround":134.3386,"deadlock_rate":23.4,"rollback_rate":23.4,"wasted_rate":49.9,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003}},"large (10 x 12)":{"fixed":{"throughput":27.3,"turnaround":314.8897,"deadlock_rate":37.3667,"rollback_rate":37.3667,"wasted_rate":51.7333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0009},"bursty":{"throughput":15.9333,"turnaround":499.4063,"deadlock_rate":24.7333,"rollback_rate":24.7333,"wasted_rate":73.7333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":84.8333,"turnaround":112.7787,"deadlock_rate":22.6,"rollback_rate":22.6,"wasted_rate":37.1,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003},"mixed":{"throughput":43.5,"turnaround":217.1467,"deadlock_rate":30.9667,"rollback_rate":30.9667,"wasted_rate":59.4,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003}},"high contention (8 x 6)":{"fixed":{"throughput":23.8333,"turnaround":303.8023,"deadlock_rate":96.2333,"rollback_rate":96.2333,"wasted_rate":124.7,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0009},"bursty":{"throughput":12.5333,"turnaround":509.3614,"deadlock_rate":82.2667,"rollback_rate":82.2667,"wasted_rate":204.3333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0006},"escalating":{"throughput":69.9667,"turnaround":119.5558,"deadlock_rate":82.9,"rollback_rate":82.9,"wasted_rate":125.5,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0007},"mixed":{"throughput":35.3,"turnaround":199.7196,"deadlock_rate":82.1667,"rollback_rate":82.1667,"wasted_rate":164.5667,"queue_rate":0.0,"starved":0.15,"latency_ms":0.0003}}},"timeout":{"small (4 x 6)":{"fixed":{"throughput":29.7333,"turnaround":129.5637,"deadlock_rate":25.7667,"rollback_rate":37.7333,"wasted_rate":40.5667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":17.8667,"turnaround":209.153,"deadlock_rate":21.5333,"rollback_rate":31.3667,"wasted_rate":69.9333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":84.4333,"turnaround":49.8874,"deadlock_rate":20.2,"rollback_rate":31.6333,"wasted_rate":31.3667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":41.3333,"turnaround":100.6498,"deadlock_rate":29.8667,"rollback_rate":49.6,"wasted_rate":75.8,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004}},"default (6 x 8)":{"fixed":{"throughput":28.7,"turnaround":191.8243,"deadlock_rate":25.9,"rollback_rate":54.9,"wasted_rate":53.6667,"queue_rate":0.0,"starved":0.1,"latency_ms":0.0004},"bursty":{"throughput":16.6333,"turnaround":319.7482,"deadlock_rate":21.5,"rollback_rate":43.6333,"wasted_rate":83.8333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":83.4,"turnaround":72.6841,"deadlock_rate":14.7333,"rollback_rate":29.4333,"wasted_rate":25.1333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":47.9667,"turnaround":126.9584,"deadlock_rate":18.1333,"rollback_rate":38.2,"wasted_rate":52.9333,"queue_rate":0.0,"starved":0.05,"latency_ms":0.0004}},"large (10 x 12)":{"fixed":{"throughput":25.3667,"turnaround":300.2409,"deadlock_rate":25.7,"rollback_rate":79.3,"wasted_rate":57.3,"queue_rate":0.0,"starved":0.9,"latency_ms":0.0009},"bursty":{"throughput":14.8,"turnaround":528.213,"deadlock_rate":20.9667,"rollback_rate":63.3667,"wasted_rate":93.4667,"queue_rate":0.0,"starved":0.05,"latency_ms":0.0004},"escalating":{"throughput":84.4,"turnaround":112.553,"deadlock_rate":15.5667,"rollback_rate":55.8667,"wasted_rate":38.3,"queue_rate":0.0,"starved":0.05,"latency_ms":0.0004},"mixed":{"throughput":45.5333,"turnaround":207.1631,"deadlock_rate":21.6,"rollback_rate":70.0,"wasted_rate":70.3333,"queue_rate":0.0,"starved":0.2,"latency_ms":0.0003}},"high contention (8 x 6)":{"fixed":{"throughput":21.5,"turnaround":317.2653,"deadlock_rate":62.1667,"rollback_rate":184.9,"wasted_rate":111.9667,"queue_rate":0.0,"starved":0.45,"latency_ms":0.001},"bursty":{"throughput":10.4333,"turnaround":568.3758,"deadlock_rate":60.7333,"rollback_rate":180.6333,"wasted_rate":221.7333,"queue_rate":0.0,"starved":0.1,"latency_ms":0.0008},"escalating":{"throughput":67.5,"turnaround":121.3192,"deadlock_rate":55.0,"rollback_rate":158.3333,"wasted_rate":101.9,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0008},"mixed":{"throughput":38.5333,"turnaround":197.4241,"deadlock_rate":53.0,"rollback_rate":162.2333,"wasted_rate":140.1,"queue_rate":0.0,"starved":0.25,"latency_ms":0.0003}}},"wait_die":{"small (4 x 6)":{"fixed":{"throughput":16.8333,"turnaround":222.8048,"deadlock_rate":0.0,"rollback_rate":353.9667,"wasted_rate":113.0667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":10.3,"turnaround":341.7173,"deadlock_rate":0.0,"rollback_rate":297.1333,"wasted_rate":168.0667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":49.8,"turnaround":87.8794,"deadlock_rate":0.0,"rollback_rate":322.9667,"wasted_rate":90.3667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0005},"mixed":{"throughput":23.1333,"turnaround":180.6927,"deadlock_rate":0.0,"rollback_rate":358.3,"wasted_rate":106.6333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004}},"default (6 x 8)":{"fixed":{"throughput":14.9,"turnaround":352.9186,"deadlock_rate":0.0,"rollback_rate":383.9333,"wasted_rate":128.1,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":8.0333,"turnaround":593.0002,"deadlock_rate":0.0,"rollback_rate":360.6667,"wasted_rate":193.4,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":44.0,"turnaround":139.3185,"deadlock_rate":0.0,"rollback_rate":380.1667,"wasted_rate":87.5667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0005},"mixed":{"throughput":24.8333,"turnaround":247.8237,"deadlock_rate":0.0,"rollback_rate":361.6,"wasted_rate":113.1333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004}},"large (10 x 12)":{"fixed":{"throughput":12.1667,"turnaround":600.2961,"deadlock_rate":0.0,"rollback_rate":431.7,"wasted_rate":146.5667,"queue_rate":0.0,"starved":0.35,"latency_ms":0.0007},"bursty":{"throughput":5.8333,"turnaround":950.2319,"deadlock_rate":0.0,"rollback_rate":412.6667,"wasted_rate":203.1333,"queue_rate":0.0,"starved":1.7,"latency_ms":0.0004},"escalating":{"throughput":41.5,"turnaround":222.6211,"deadlock_rate":0.0,"rollback_rate":418.6667,"wasted_rate":106.9667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":18.6333,"turnaround":453.2132,"deadlock_rate":0.0,"rollback_rate":428.7333,"wasted_rate":147.3333,"queue_rate":0.0,"starved":0.7,"latency_ms":0.0004}},"high contention (8 x 6)":{"fixed":{"throughput":8.6333,"turnaround":644.4218,"deadlock_rate":0.0,"rollback_rate":574.7667,"wasted_rate":126.8,"queue_rate":0.0,"starved":0.4,"latency_ms":0.0009},"bursty":{"throughput":4.0333,"turnaround":947.815,"deadlock_rate":0.0,"rollback_rate":526.0,"wasted_rate":209.1,"queue_rate":0.0,"starved":2.1,"latency_ms":0.0007},"escalating":{"throughput":29.2333,"turnaround":274.1913,"deadlock_rate":0.0,"rollback_rate":530.3,"wasted_rate":116.8333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0008},"mixed":{"throughput":12.6667,"turnaround":477.3987,"deadlock_rate":0.0,"rollback_rate":551.6333,"wasted_rate":141.8,"queue_rate":0.0,"starved":0.6,"latency_ms":0.0003}}},"wound_wait":{"small (4 x 6)":{"fixed":{"throughput":21.9667,"turnaround":174.4464,"deadlock_rate":0.0,"rollback_rate":166.4333,"wasted_rate":284.9,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":13.5,"turnaround":270.2166,"deadlock_rate":0.0,"rollback_rate":145.0667,"wasted_rate":310.8667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"escalating":{"throughput":67.7,"turnaround":62.016,"deadlock_rate":0.0,"rollback_rate":110.1333,"wasted_rate":156.5333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":28.2333,"turnaround":145.0623,"deadlock_rate":0.0,"rollback_rate":171.7667,"wasted_rate":286.6333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003}},"default (6 x 8)":{"fixed":{"throughput":20.5667,"turnaround":267.8641,"deadlock_rate":0.0,"rollback_rate":192.4667,"wasted_rate":318.8667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"bursty":{"throughput":11.6333,"turnaround":437.5479,"deadlock_rate":0.0,"rollback_rate":183.7,"wasted_rate":376.0667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003},"escalating":{"throughput":64.0,"turnaround":94.6488,"deadlock_rate":0.0,"rollback_rate":133.0,"wasted_rate":184.5667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004},"mixed":{"throughput":29.4,"turnaround":209.7024,"deadlock_rate":0.0,"rollback_rate":174.2333,"wasted_rate":296.7,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0004}},"large (10 x 12)":{"fixed":{"throughput":18.6,"turnaround":448.3675,"deadlock_rate":0.0,"rollback_rate":230.0,"wasted_rate":362.5333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0005},"bursty":{"throughput":10.3667,"turnaround":710.7684,"deadlock_rate":0.0,"rollback_rate":209.2667,"wasted_rate":409.6,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003},"escalating":{"throughput":64.6,"turnaround":149.1196,"deadlock_rate":0.0,"rollback_rate":159.7,"wasted_rate":218.1333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003},"mixed":{"throughput":25.8,"turnaround":364.003,"deadlock_rate":0.0,"rollback_rate":216.9333,"wasted_rate":359.4333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003}},"high contention (8 x 6)":{"fixed":{"throughput":15.9,"turnaround":431.4866,"deadlock_rate":0.0,"rollback_rate":324.1,"wasted_rate":445.0,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0006},"bursty":{"throughput":8.5,"turnaround":679.6287,"deadlock_rate":0.0,"rollback_rate":299.2667,"wasted_rate":508.2667,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0006},"escalating":{"throughput":54.1333,"turnaround":148.9321,"deadlock_rate":0.0,"rollback_rate":233.6,"wasted_rate":287.0,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0007},"mixed":{"throughput":20.6667,"turnaround":341.8764,"deadlock_rate":0.0,"rollback_rate":296.0,"wasted_rate":423.3333,"queue_rate":0.0,"starved":0.0,"latency_ms":0.0003}}},"sage":{"small (4 x 6)":{"fixed":{"throughput":32.7333,"turnaround":112.4024,"deadlock_rate":0.3,"rollback_rate":0.3,"wasted_rate":0.5333,"queue_rate":4.8998,"starved":0.0,"latency_ms":5.2787},"bursty":{"throughput":19.7667,"turnaround":188.1483,"deadlock_rate":1.0333,"rollback_rate":1.0333,"wasted_rate":4.8333,"queue_rate":31.1133,"starved":0.0,"latency_ms":0.0813},"escalating":{"throughput":93.5,"turnaround":43.8666,"deadlock_rate":2.9333,"rollback_rate":2.9333,"wasted_rate":6.0667,"queue_rate":10.7921,"starved":0.0,"latency_ms":4.5841},"mixed":{"throughput":45.5333,"turnaround":92.7056,"deadlock_rate":2.1667,"rollback_rate":2.1667,"wasted_rate":4.5667,"queue_rate":18.0589,"starved":0.0,"latency_ms":3.5608}},"default (6 x 8)":{"fixed":{"throughput":32.1667,"turnaround":162.2609,"deadlock_rate":0.9,"rollback_rate":0.9,"wasted_rate":1.4333,"queue_rate":8.0475,"starved":0.0,"latency_ms":4.3015},"bursty":{"throughput":19.2333,"turnaround":280.4458,"deadlock_rate":1.1333,"rollback_rate":1.1333,"wasted_rate":4.7333,"queue_rate":32.7504,"starved":0.0,"latency_ms":0.0866},"escalating":{"throughput":92.7333,"turnaround":63.6982,"deadlock_rate":1.1667,"rollback_rate":1.1667,"wasted_rate":2.3333,"queue_rate":8.0758,"starved":0.0,"latency_ms":6.645},"mixed":{"throughput":54.3667,"turnaround":105.0259,"deadlock_rate":1.2667,"rollback_rate":1.2667,"wasted_rate":3.6333,"queue_rate":20.8388,"starved":0.0,"latency_ms":5.9282}},"large (10 x 12)":{"fixed":{"throughput":30.0333,"turnaround":266.6206,"deadlock_rate":2.0667,"rollback_rate":2.0667,"wasted_rate":3.2667,"queue_rate":12.6898,"starved":0.0,"latency_ms":3.7939},"bursty":{"throughput":17.4,"turnaround":468.656,"deadlock_rate":10.1667,"rollback_rate":10.1667,"wasted_rate":28.4333,"queue_rate":44.0013,"starved":0.0,"latency_ms":0.1185},"escalating":{"throughput":95.6333,"turnaround":95.7635,"deadlock_rate":2.5,"rollback_rate":2.5,"wasted_rate":4.4667,"queue_rate":14.0904,"starved":0.0,"latency_ms":10.8791},"mixed":{"throughput":51.7333,"turnaround":178.063,"deadlock_rate":3.4,"rollback_rate":3.4,"wasted_rate":9.3333,"queue_rate":20.2974,"starved":0.1,"latency_ms":3.3894}},"high contention (8 x 6)":{"fixed":{"throughput":32.0667,"turnaround":205.4364,"deadlock_rate":7.8667,"rollback_rate":7.8667,"wasted_rate":11.3667,"queue_rate":14.8148,"starved":0.0,"latency_ms":4.5775},"bursty":{"throughput":18.5667,"turnaround":370.9523,"deadlock_rate":1.7667,"rollback_rate":1.7667,"wasted_rate":6.3667,"queue_rate":31.8581,"starved":0.0,"latency_ms":0.1862},"escalating":{"throughput":101.2667,"turnaround":73.2646,"deadlock_rate":8.5667,"rollback_rate":8.5667,"wasted_rate":15.3667,"queue_rate":19.7956,"starved":0.0,"latency_ms":7.4604},"mixed":{"throughput":53.6,"turnaround":138.784,"deadlock_rate":5.9,"rollback_rate":5.9,"wasted_rate":12.2333,"queue_rate":23.4315,"starved":0.0,"latency_ms":2.4882}}},"sage_v1":{"small (4 x 6)":{"fixed":{"throughput":31.5,"turnaround":110.7153,"deadlock_rate":2.7,"rollback_rate":2.7,"wasted_rate":29.2,"queue_rate":38.2813,"starved":0.4,"latency_ms":7.5445},"bursty":{"throughput":13.4,"turnaround":254.2674,"deadlock_rate":18.7,"rollback_rate":18.7,"wasted_rate":302.8333,"queue_rate":55.8589,"starved":0.05,"latency_ms":9.6481},"escalating":{"throughput":96.4667,"turnaround":40.26,"deadlock_rate":3.7667,"rollback_rate":3.7667,"wasted_rate":38.2333,"queue_rate":45.0121,"starved":0.2,"latency_ms":5.7426},"mixed":{"throughput":50.5667,"turnaround":81.6326,"deadlock_rate":9.0,"rollback_rate":9.0,"wasted_rate":105.9333,"queue_rate":56.8256,"starved":0.3,"latency_ms":5.7507}},"default (6 x 8)":{"fixed":{"throughput":31.2667,"turnaround":164.6656,"deadlock_rate":2.9333,"rollback_rate":2.9333,"wasted_rate":37.2333,"queue_rate":26.8083,"starved":0.2,"latency_ms":7.0881},"bursty":{"throughput":11.1667,"turnaround":388.6941,"deadlock_rate":24.2,"rollback_rate":24.2,"wasted_rate":382.9333,"queue_rate":38.4851,"starved":0.35,"latency_ms":11.9013},"escalating":{"throughput":92.9667,"turnaround":60.2764,"deadlock_rate":1.5333,"rollback_rate":1.5333,"wasted_rate":15.9667,"queue_rate":31.5809,"starved":0.1,"latency_ms":12.7231},"mixed":{"throughput":48.1,"turnaround":100.5992,"deadlock_rate":6.1,"rollback_rate":6.1,"wasted_rate":99.5333,"queue_rate":28.5873,"starved":0.7,"latency_ms":12.1209}},"large (10 x 12)":{"fixed":{"throughput":28.1333,"turnaround":265.6324,"deadlock_rate":11.6,"rollback_rate":11.6,"wasted_rate":92.6,"queue_rate":19.8404,"starved":1.1,"latency_ms":12.6788},"bursty":{"throughput":10.7667,"turnaround":552.9358,"deadlock_rate":22.4,"rollback_rate":22.4,"wasted_rate":362.1333,"queue_rate":15.1678,"starved":1.35,"latency_ms":9.2637},"escalating":{"throughput":88.9,"turnaround":100.7169,"deadlock_rate":7.0,"rollback_rate":7.0,"wasted_rate":61.1333,"queue_rate":26.2583,"starved":0.5,"latency_ms":16.038},"mixed":{"throughput":43.6667,"turnaround":191.1611,"deadlock_rate":13.8,"rollback_rate":13.8,"wasted_rate":154.8333,"queue_rate":18.7774,"starved":1.35,"latency_ms":13.0784}},"high contention (8 x 6)":{"fixed":{"throughput":26.6333,"turnaround":226.9853,"deadlock_rate":17.4667,"rollback_rate":17.4667,"wasted_rate":150.9,"queue_rate":39.767,"starved":1.0,"latency_ms":8.7054},"bursty":{"throughput":4.7667,"turnaround":660.5949,"deadlock_rate":52.5333,"rollback_rate":52.5333,"wasted_rate":660.3333,"queue_rate":58.5142,"starved":3.35,"latency_ms":12.1646},"escalating":{"throughput":90.8333,"turnaround":73.4964,"deadlock_rate":14.7667,"rollback_rate":14.7667,"wasted_rate":136.1333,"queue_rate":60.3844,"starved":0.75,"latency_ms":11.5527},"mixed":{"throughput":45.4333,"turnaround":137.0385,"deadlock_rate":30.7333,"rollback_rate":30.7333,"wasted_rate":251.4,"queue_rate":48.8324,"starved":1.9,"latency_ms":8.9689}}}},"seedsets":{"0-19":{"v1":{"fixed":{"deadlock_rate":2.9333,"queue_rate":26.8083,"throughput":31.2667,"starved":0.2},"bursty":{"deadlock_rate":24.2,"queue_rate":38.4851,"throughput":11.1667,"starved":0.35},"escalating":{"deadlock_rate":1.5333,"queue_rate":31.5809,"throughput":92.9667,"starved":0.1},"mixed":{"deadlock_rate":6.1,"queue_rate":28.5873,"throughput":48.1,"starved":0.7}},"v2":{"fixed":{"deadlock_rate":0.9,"queue_rate":8.0475,"throughput":32.1667,"starved":0.0},"bursty":{"deadlock_rate":1.1333,"queue_rate":32.7504,"throughput":19.2333,"starved":0.0},"escalating":{"deadlock_rate":1.1667,"queue_rate":8.0758,"throughput":92.7333,"starved":0.0},"mixed":{"deadlock_rate":1.2667,"queue_rate":20.8388,"throughput":54.3667,"starved":0.0}}},"100-119":{"v1":{"fixed":{"deadlock_rate":1.0333,"queue_rate":13.7884,"throughput":31.1,"starved":0.4},"bursty":{"deadlock_rate":24.2333,"queue_rate":37.344,"throughput":11.3667,"starved":0.2},"escalating":{"deadlock_rate":4.0,"queue_rate":42.8311,"throughput":84.1667,"starved":0.0},"mixed":{"deadlock_rate":6.8333,"queue_rate":37.3316,"throughput":47.0667,"starved":0.55}},"v2":{"fixed":{"deadlock_rate":0.4333,"queue_rate":7.9786,"throughput":31.7667,"starved":0.0},"bursty":{"deadlock_rate":0.7333,"queue_rate":33.3945,"throughput":19.1,"starved":0.0},"escalating":{"deadlock_rate":1.6,"queue_rate":11.2141,"throughput":86.9667,"starved":0.0},"mixed":{"deadlock_rate":2.5667,"queue_rate":19.3549,"throughput":47.2333,"starved":0.0}}},"200-259":{"v1":{"fixed":{"deadlock_rate":1.8333,"queue_rate":19.1436,"throughput":31.7222,"starved":0.2833},"bursty":{"deadlock_rate":22.0778,"queue_rate":36.2953,"throughput":11.7889,"starved":0.1833},"escalating":{"deadlock_rate":3.0222,"queue_rate":36.1022,"throughput":95.6556,"starved":0.1833},"mixed":{"deadlock_rate":9.3111,"queue_rate":36.2965,"throughput":50.6,"starved":0.3833}},"v2":{"fixed":{"deadlock_rate":0.5444,"queue_rate":6.4541,"throughput":32.7222,"starved":0.0333},"bursty":{"deadlock_rate":1.0,"queue_rate":33.2143,"throughput":19.3111,"starved":0.0},"escalating":{"deadlock_rate":1.1222,"queue_rate":10.6239,"throughput":98.8556,"starved":0.0},"mixed":{"deadlock_rate":2.1222,"queue_rate":20.193,"throughput":53.7667,"starved":0.0}}}},"official":{"v1":{"fixed|bankers":{"blocked_mean":309.0,"completed_mean":47.35,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.028540221864672383,"queue_rate_mean":6.863122770884672,"starved_mean":0.05,"throughput_mean":31.566666666666663},"fixed|reactive":{"blocked_mean":443.05,"completed_mean":33.7,"deadlock_rate_mean":34.766666666666666,"deadlocks_mean":52.15,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.00017647005506563851,"queue_rate_mean":0.0,"starved_mean":0.95,"throughput_mean":22.46666666666667},"fixed|sage":{"blocked_mean":265.8,"completed_mean":46.9,"deadlock_rate_mean":2.9333333333333327,"deadlocks_mean":4.4,"fallback_rate_mean":0.1976357373323967,"forced_mean":46.35,"latency_ms_mean":3.1069903169471482,"queue_rate_mean":26.808257665827306,"starved_mean":0.2,"throughput_mean":31.266666666666662},"bursty|bankers":{"blocked_mean":62.55,"completed_mean":28.9,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.01835982728164841,"queue_rate_mean":41.26095473833393,"starved_mean":0.0,"throughput_mean":19.266666666666666},"bursty|reactive":{"blocked_mean":395.7,"completed_mean":16.75,"deadlock_rate_mean":21.933333333333334,"deadlocks_mean":32.9,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.00015593868475978823,"queue_rate_mean":0.0,"starved_mean":0.35,"throughput_mean":11.166666666666668},"bursty|sage":{"blocked_mean":292.65,"completed_mean":16.75,"deadlock_rate_mean":24.200000000000003,"deadlocks_mean":36.3,"fallback_rate_mean":55.98989629665317,"forced_mean":183.25,"latency_ms_mean":3.75844344130901,"queue_rate_mean":38.48507904691267,"starved_mean":0.35,"throughput_mean":11.166666666666668},"escalating|bankers":{"blocked_mean":227.15,"completed_mean":129.7,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.025543870599727105,"queue_rate_mean":11.139583339153,"starved_mean":0.0,"throughput_mean":86.46666666666667},"escalating|reactive":{"blocked_mean":326.3,"completed_mean":114.25,"deadlock_rate_mean":15.433333333333334,"deadlocks_mean":23.15,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.00014817148551333836,"queue_rate_mean":0.0,"starved_mean":0.1,"throughput_mean":76.16666666666667},"escalating|sage":{"blocked_mean":169.7,"completed_mean":139.45,"deadlock_rate_mean":1.5333333333333334,"deadlocks_mean":2.3,"fallback_rate_mean":2.186540813467931,"forced_mean":83.85,"latency_ms_mean":4.159678501857868,"queue_rate_mean":31.58085671252947,"starved_mean":0.1,"throughput_mean":92.96666666666667},"mixed|bankers":{"blocked_mean":213.15,"completed_mean":82.8,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.02963187895266403,"queue_rate_mean":14.178462250746097,"starved_mean":0.2,"throughput_mean":55.2},"mixed|reactive":{"blocked_mean":372.85,"completed_mean":61.3,"deadlock_rate_mean":18.9,"deadlocks_mean":28.35,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.0001866901163943872,"queue_rate_mean":0.0,"starved_mean":0.5,"throughput_mean":40.86666666666667},"mixed|sage":{"blocked_mean":190.6,"completed_mean":72.15,"deadlock_rate_mean":6.1000000000000005,"deadlocks_mean":9.15,"fallback_rate_mean":12.710424396541626,"forced_mean":72.1,"latency_ms_mean":3.87897444265635,"queue_rate_mean":28.587318160561427,"starved_mean":0.7,"throughput_mean":48.099999999999994}},"v2":{"fixed|bankers":{"blocked_mean":309.0,"completed_mean":47.35,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.046370042374120436,"min_slot_completed_mean":3.85,"queue_rate_mean":6.863122770884672,"starved_mean":0.05,"throughput_mean":31.566666666666663},"fixed|reactive":{"blocked_mean":447.4,"completed_mean":43.5,"deadlock_rate_mean":35.633333333333326,"deadlocks_mean":53.45,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.0006236441020883149,"min_slot_completed_mean":3.65,"queue_rate_mean":0.0,"starved_mean":0.0,"throughput_mean":28.999999999999993},"fixed|sage":{"blocked_mean":237.75,"completed_mean":48.25,"deadlock_rate_mean":0.8999999999999998,"deadlocks_mean":1.35,"fallback_rate_mean":0.0,"forced_mean":18.7,"latency_ms_mean":9.360386414033306,"min_slot_completed_mean":1.8,"queue_rate_mean":8.047524501469102,"starved_mean":0.0,"throughput_mean":32.16666666666667},"bursty|bankers":{"blocked_mean":62.55,"completed_mean":28.9,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.07764108862072006,"min_slot_completed_mean":3.75,"queue_rate_mean":41.26095473833393,"starved_mean":0.0,"throughput_mean":19.266666666666666},"bursty|reactive":{"blocked_mean":403.85,"completed_mean":25.9,"deadlock_rate_mean":23.133333333333333,"deadlocks_mean":34.7,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.0006668280161732391,"min_slot_completed_mean":3.45,"queue_rate_mean":0.0,"starved_mean":0.0,"throughput_mean":17.266666666666673},"bursty|sage":{"blocked_mean":89.6,"completed_mean":28.85,"deadlock_rate_mean":1.1333333333333333,"deadlocks_mean":1.7,"fallback_rate_mean":0.0,"forced_mean":3.05,"latency_ms_mean":0.18563773058363794,"min_slot_completed_mean":3.95,"queue_rate_mean":32.750408875600705,"starved_mean":0.0,"throughput_mean":19.233333333333334},"escalating|bankers":{"blocked_mean":227.15,"completed_mean":129.7,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.10780166470040249,"min_slot_completed_mean":8.35,"queue_rate_mean":11.139583339153,"starved_mean":0.0,"throughput_mean":86.46666666666667},"escalating|reactive":{"blocked_mean":342.95,"completed_mean":120.55,"deadlock_rate_mean":20.1,"deadlocks_mean":30.15,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.0007118522289525659,"min_slot_completed_mean":8.85,"queue_rate_mean":0.0,"starved_mean":0.0,"throughput_mean":80.36666666666667},"escalating|sage":{"blocked_mean":186.1,"completed_mean":139.1,"deadlock_rate_mean":1.1666666666666665,"deadlocks_mean":1.75,"fallback_rate_mean":0.0,"forced_mean":13.95,"latency_ms_mean":10.321154304847786,"min_slot_completed_mean":5.15,"queue_rate_mean":8.075798231821452,"starved_mean":0.0,"throughput_mean":92.73333333333332},"mixed|bankers":{"blocked_mean":213.15,"completed_mean":82.8,"deadlock_rate_mean":0.0,"deadlocks_mean":0.0,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.10303761404432117,"min_slot_completed_mean":1.8,"queue_rate_mean":14.178462250746097,"starved_mean":0.2,"throughput_mean":55.2},"mixed|reactive":{"blocked_mean":388.1,"completed_mean":68.7,"deadlock_rate_mean":23.4,"deadlocks_mean":35.1,"fallback_rate_mean":0.0,"forced_mean":0.0,"latency_ms_mean":0.0008292665423981513,"min_slot_completed_mean":3.5,"queue_rate_mean":0.0,"starved_mean":0.0,"throughput_mean":45.800000000000004},"mixed|sage":{"blocked_mean":156.3,"completed_mean":81.55,"deadlock_rate_mean":1.2666666666666666,"deadlocks_mean":1.9,"fallback_rate_mean":0.0,"forced_mean":61.1,"latency_ms_mean":8.21894460282762,"min_slot_completed_mean":1.9,"queue_rate_mean":20.838789477143358,"starved_mean":0.0,"throughput_mean":54.36666666666666}}},"accuracy":{"lives3":{"v1":{"fixed":{"top1":96.8,"loglik":-0.08698932005992044,"events":18750},"bursty":{"top1":21.8930988765613,"loglik":-4.1578403542150895,"events":28662},"escalating":{"top1":77.62820512820512,"loglik":-0.3865668663360921,"events":7800}},"v2":{"fixed":{"top1":96.8,"loglik":-0.08698932005992044},"bursty":{"top1":23.166561998464868,"loglik":-3.9797758984013702},"escalating":{"top1":100.0,"loglik":-0.12087144261917618}}},"lives10":{"v1":{"fixed":{"top1":96.77141627206198,"loglik":-0.08728933629877167,"events":18584},"bursty":{"top1":25.373186383928573,"loglik":-3.043246692579244,"events":28672},"escalating":{"top1":77.62820512820512,"loglik":-0.3865668663360921,"events":7800}},"v2":{"fixed":{"top1":96.78755919070169,"loglik":-0.08548692431793206,"events":18584},"bursty":{"top1":25.889369419642858,"loglik":-2.752710234676635,"events":28672},"escalating":{"top1":100.0,"loglik":-0.047050955742149264,"events":7800}}},"replay":{"v1":{"acc":28.24666666666667,"dl":36.3},"v2":{"acc":22.776666666666667,"dl":1.7},"v2_deadlocky":{"acc":43.766666666666666,"dl":31.6}}},"warnings":{"fixed":{"v1":{"deadlocks":357,"recall":74.2296918767507,"warnable":265,"recall_w":100.0,"warnings":1481,"precision":77.98784604996624,"f1":87.63277693474961,"lead_median_common":8.0},"v2":{"deadlocks":357,"recall":74.2296918767507,"warnable":265,"recall_w":100.0,"warnings":1892,"precision":89.53488372093024,"f1":94.47852760736198,"lead_median_common":13.0},"common_warned":265,"v2_earlier_or_equal":255},"bursty":{"v1":{"deadlocks":178,"recall":44.38202247191011,"warnable":162,"recall_w":48.76543209876543,"warnings":712,"precision":52.3876404494382,"f1":50.511682122837996,"lead_median_common":24.0},"v2":{"deadlocks":178,"recall":90.4494382022472,"warnable":162,"recall_w":99.38271604938272,"warnings":3200,"precision":52.875,"f1":69.02587596160667,"lead_median_common":35.0},"common_warned":79,"v2_earlier_or_equal":76},"escalating":{"v1":{"deadlocks":51,"recall":92.15686274509804,"warnable":47,"recall_w":100.0,"warnings":528,"precision":53.97727272727273,"f1":70.11070110701108,"lead_median_common":47.0},"v2":{"deadlocks":51,"recall":92.15686274509804,"warnable":47,"recall_w":100.0,"warnings":477,"precision":67.71488469601677,"f1":80.75,"lead_median_common":36.0},"common_warned":47,"v2_earlier_or_equal":34},"mixed":{"v1":{"deadlocks":236,"recall":83.05084745762711,"warnable":201,"recall_w":97.51243781094527,"warnings":1625,"precision":66.27692307692308,"f1":78.91628985919021,"lead_median_common":14.0},"v2":{"deadlocks":236,"recall":83.05084745762711,"warnable":201,"recall_w":97.51243781094527,"warnings":1809,"precision":65.67164179104478,"f1":78.48562067710229,"lead_median_common":17.0},"common_warned":191,"v2_earlier_or_equal":172}},"shift":{"v1":{"bankers":{"deadlocks":0.0,"window_deadlocks":0.0,"window_queue_rate":22.5637},"reactive":{"deadlocks":122.6,"window_deadlocks":38.0,"window_queue_rate":0.0},"sage":{"deadlocks":11.1,"window_deadlocks":8.4,"window_queue_rate":40.1387,"detected":[59.0,60.0],"delay_ticks":70.675,"delay_events":8.966101694915254}},"v2":{"bankers":{"deadlocks":0.0,"window_deadlocks":0.0,"window_queue_rate":22.5637},"reactive":{"deadlocks":121.45,"window_deadlocks":37.9,"window_queue_rate":0.0},"sage":{"deadlocks":1.95,"window_deadlocks":1.95,"window_queue_rate":21.1787,"detected":[60.0,60.0],"delay_ticks":23.5667,"delay_events":3.2667}}},"sweep":{"v1":{"0.02":{"deadlock_rate":5.2,"queue_rate":47.7223,"throughput":45.6},"0.05":{"deadlock_rate":6.5333,"queue_rate":46.9359,"throughput":52.6667},"0.1":{"deadlock_rate":7.3333,"queue_rate":35.1081,"throughput":43.8667},"0.2":{"deadlock_rate":8.8,"queue_rate":31.2211,"throughput":52.8},"0.3":{"deadlock_rate":8.8,"queue_rate":26.977,"throughput":44.2667},"0.5":{"deadlock_rate":10.5333,"queue_rate":14.2884,"throughput":56.8},"1.01":{"deadlock_rate":22.5333,"queue_rate":0.0,"throughput":40.4}},"v2":{"0.02":{"deadlock_rate":0.8,"queue_rate":24.1716,"throughput":55.4667},"0.05":{"deadlock_rate":1.0667,"queue_rate":20.1569,"throughput":55.4667},"0.1":{"deadlock_rate":1.4667,"queue_rate":26.636,"throughput":50.5333},"0.2":{"deadlock_rate":1.7333,"queue_rate":12.7472,"throughput":55.7333},"0.3":{"deadlock_rate":2.2667,"queue_rate":11.4399,"throughput":52.0},"0.5":{"deadlock_rate":2.0,"queue_rate":10.9114,"throughput":56.8},"1.01":{"deadlock_rate":18.4,"queue_rate":6.1616,"throughput":54.5333}}},"latency":{"grid":{"20|10":{"v1":0.6514857879957398,"v2":0.6935715154376662},"20|20":{"v1":1.382126517245064,"v2":1.8897668535230103},"20|50":{"v1":12.832166399367747,"v2":5.57912044066548},"20|100":{"v1":31.985741694155177,"v2":6.605034964262879},"50|10":{"v1":0.7868446366666128,"v2":0.9762806115164693},"50|20":{"v1":1.8596667188251417,"v2":3.05853889036972},"50|50":{"v1":14.382122935683347,"v2":6.49928052635924},"50|100":{"v1":9.536535376594532,"v2":3.2417765945228028},"100|10":{"v1":0.9393549167438999,"v2":1.0091266082323709},"100|20":{"v1":2.119529459039892,"v2":1.559516460820819},"100|50":{"v1":6.266907584200849,"v2":2.91882678228518},"100|100":{"v1":12.229099377285127,"v2":3.5614968555702737},"200|10":{"v1":1.6968576415573877,"v2":1.3264395441022796},"200|20":{"v1":3.453971816644079,"v2":2.2342759282651388},"200|50":{"v1":8.837203993023987,"v2":4.116608850420622},"200|100":{"v1":17.573255329689346,"v2":4.8186111467666075}},"family":{"fixed|0":{"v1":1.7900794303152507,"v2":3.0633617762677288},"fixed|1":{"v1":2.581347547670674,"v2":1.9494210528168958},"fixed|2":{"v1":3.299515281776441,"v2":3.392734343828069},"bursty|0":{"v1":2.884008332639883,"v2":0.04240122343892268},"bursty|1":{"v1":3.73069688916412,"v2":0.049484841960891424},"bursty|2":{"v1":3.592166954348059,"v2":0.04203363626599442},"escalating|0":{"v1":4.14120294180593,"v2":3.136876989311094},"escalating|1":{"v1":3.9822195576696324,"v2":4.489322140558564},"escalating|2":{"v1":3.984636301015287,"v2":4.5130280143100805},"mixed|0":{"v1":4.08025465134584,"v2":2.6575023464983145},"mixed|1":{"v1":4.050649639335821,"v2":2.664541387543904},"mixed|2":{"v1":4.415329502939221,"v2":2.905826232043875}}},"verify":["1a reactive DFS: no cycle after first block, cycle after second PASS","1b Banker's (truthful maxima) refuses P2's request for R2  PASS","1c SAGE assigns P2's request for R2 a high risk (1.00) and queues it PASS","2a textbook state is safe with valid sequence [1, 3, 4, 0, 2] PASS","2b P1's request (1,0,2) leaves a safe state                PASS","2c P0's request (0,2,0) would then leave an unsafe state   PASS","3  two runs with the same seed and configuration are identical PASS","4a tau above 100%: SAGE never queues (waits = 0)           PASS","4b tau = 0: every learned-path decision is a queue (643 of 643) PASS","5  prediction never releases a resource that is not held (1, 2) PASS","6a stationary bursty processes fall back as uncertain, not drift (21 drift of 268) PASS","6b every shifted process is flagged as drifted (3 of 3)    PASS","7a P0 blocked behind the P1-P2 deadlock is not charged with it (0.00; any deadlock 1.00) PASS","7b a queued conflicting request does not count against the next one (0.49 -> 0.00) PASS","8  while a request is overdue, idle processes wait and holders run on (wait/drain, grant/learned) PASS","9a learned claims: P2's request for R2 is safe while P1 holds nothing PASS","9b learned claims: once P1 holds R1, P2's request for R2 is unsafe PASS","9c P1 was never seen holding two resources (limit 1), so it releases R1 before asking for R2: P2's request for R2 is safe PASS","10a after releasing everything, the context tells another level (0) from the exit (4); table in use: 2 PASS","10 a victim is rolled back to the last point at which it held nothing [(0, 5), (4, 2)] PASS","11 shadow mode warns about bursty processes through the fallback route (256 warnings, 0 queued) PASS","12a wait-die: the older process waits, the younger one dies PASS","12b wound-wait: the older process wounds the holder, the younger one waits PASS","12c wait-die, wound-wait and Banker's without declared demand never deadlock {'wait_die': 0, 'wound_wait': 0, 'bankers_nodecl': 0} PASS","12d timeout: deadlocks are counted but left to the timeout (20 deadlocks, 27 rollbacks) PASS"],"verify_v1":["1a","1b","1c","2a","2b","2c","3","4a","4b"],"scoreboard":[{"area":"Seed set seeds 0\u201319","item":"Fixed-pattern, deadlocks / 1,000 events","v1":2.9333333333333327,"v2":0.8999999999999998,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Fixed-pattern, requests queued (%)","v1":26.808257665827306,"v2":8.047524501469102,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Fixed-pattern, throughput","v1":31.266666666666662,"v2":32.16666666666667,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Fixed-pattern, starved slots","v1":0.2,"v2":0.0,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Bursty / random, deadlocks / 1,000 events","v1":24.200000000000003,"v2":1.1333333333333333,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Bursty / random, requests queued (%)","v1":38.48507904691267,"v2":32.750408875600705,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Bursty / random, throughput","v1":11.166666666666668,"v2":19.233333333333334,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Bursty / random, starved slots","v1":0.35,"v2":0.0,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Gradually escalating, deadlocks / 1,000 events","v1":1.5333333333333334,"v2":1.1666666666666665,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Gradually escalating, requests queued (%)","v1":31.58085671252947,"v2":8.075798231821452,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Gradually escalating, throughput","v1":92.96666666666667,"v2":92.73333333333332,"result":"worse"},{"area":"Seed set seeds 0\u201319","item":"Gradually escalating, starved slots","v1":0.1,"v2":0.0,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Mixed, deadlocks / 1,000 events","v1":6.1000000000000005,"v2":1.2666666666666666,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Mixed, requests queued (%)","v1":28.587318160561427,"v2":20.838789477143358,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Mixed, throughput","v1":48.099999999999994,"v2":54.36666666666666,"result":"better"},{"area":"Seed set seeds 0\u201319","item":"Mixed, starved slots","v1":0.7,"v2":0.0,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Fixed-pattern, deadlocks / 1,000 events","v1":1.0333333333333334,"v2":0.4333333333333333,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Fixed-pattern, requests queued (%)","v1":13.788410179078744,"v2":7.97863054665261,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Fixed-pattern, throughput","v1":31.100000000000005,"v2":31.766666666666662,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Fixed-pattern, starved slots","v1":0.4,"v2":0.0,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Bursty / random, deadlocks / 1,000 events","v1":24.233333333333334,"v2":0.7333333333333333,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Bursty / random, requests queued (%)","v1":37.34399347648795,"v2":33.394455581480756,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Bursty / random, throughput","v1":11.366666666666667,"v2":19.1,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Bursty / random, starved slots","v1":0.2,"v2":0.0,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Gradually escalating, deadlocks / 1,000 events","v1":4.0,"v2":1.6,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Gradually escalating, requests queued (%)","v1":42.83111940820231,"v2":11.214149003369304,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Gradually escalating, throughput","v1":84.16666666666666,"v2":86.96666666666667,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Gradually escalating, starved slots","v1":0.0,"v2":0.0,"result":"tie"},{"area":"Seed set seeds 100\u2013119","item":"Mixed, deadlocks / 1,000 events","v1":6.833333333333333,"v2":2.566666666666667,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Mixed, requests queued (%)","v1":37.33156824474111,"v2":19.35490152296044,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Mixed, throughput","v1":47.06666666666668,"v2":47.233333333333334,"result":"better"},{"area":"Seed set seeds 100\u2013119","item":"Mixed, starved slots","v1":0.55,"v2":0.0,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Fixed-pattern, deadlocks / 1,000 events","v1":1.8333333333333333,"v2":0.5444444444444445,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Fixed-pattern, requests queued (%)","v1":19.1435688214599,"v2":6.45410919182235,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Fixed-pattern, throughput","v1":31.722222222222225,"v2":32.72222222222222,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Fixed-pattern, starved slots","v1":0.2833333333333333,"v2":0.03333333333333333,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Bursty / random, deadlocks / 1,000 events","v1":22.077777777777776,"v2":0.9999999999999998,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Bursty / random, requests queued (%)","v1":36.29530490763354,"v2":33.214311510198726,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Bursty / random, throughput","v1":11.78888888888889,"v2":19.31111111111111,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Bursty / random, starved slots","v1":0.18333333333333332,"v2":0.0,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Gradually escalating, deadlocks / 1,000 events","v1":3.0222222222222226,"v2":1.1222222222222225,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Gradually escalating, requests queued (%)","v1":36.10220131148218,"v2":10.623927669779773,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Gradually escalating, throughput","v1":95.65555555555557,"v2":98.85555555555557,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Gradually escalating, starved slots","v1":0.18333333333333332,"v2":0.0,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Mixed, deadlocks / 1,000 events","v1":9.311111111111112,"v2":2.1222222222222222,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Mixed, requests queued (%)","v1":36.296469183546236,"v2":20.19295922166662,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Mixed, throughput","v1":50.599999999999994,"v2":53.76666666666666,"result":"better"},{"area":"Seed set seeds 200\u2013259","item":"Mixed, starved slots","v1":0.38333333333333336,"v2":0.0,"result":"better"},{"area":"Pooled, 100 seeds","item":"Fixed-pattern, deadlocks / 1,000 events","v1":1.893333333333333,"v2":0.5933333333333333,"result":"better"},{"area":"Pooled, 100 seeds","item":"Fixed-pattern, requests queued (%)","v1":19.60547486185715,"v2":7.077696524717751,"result":"better"},{"area":"Pooled, 100 seeds","item":"Fixed-pattern, throughput","v1":31.506666666666664,"v2":32.42,"result":"better"},{"area":"Pooled, 100 seeds","item":"Fixed-pattern, starved slots","v1":0.29,"v2":0.02,"result":"better"},{"area":"Official run","item":"Fixed-pattern, deadlocks / 1,000 events","v1":2.9333333333333327,"v2":0.8999999999999998,"result":"better"},{"area":"Official run","item":"Fixed-pattern, requests queued (%)","v1":26.808257665827306,"v2":8.047524501469102,"result":"better"},{"area":"Official run","item":"Fixed-pattern, throughput","v1":31.266666666666662,"v2":32.16666666666667,"result":"better"},{"area":"Official run","item":"Fixed-pattern, starved slots","v1":0.2,"v2":0.0,"result":"better"},{"area":"Pooled, 100 seeds","item":"Bursty / random, deadlocks / 1,000 events","v1":22.933333333333334,"v2":0.9733333333333334,"result":"better"},{"area":"Pooled, 100 seeds","item":"Bursty / random, requests queued (%)","v1":36.94299744926025,"v2":33.15755979753553,"result":"better"},{"area":"Pooled, 100 seeds","item":"Bursty / random, throughput","v1":11.58,"v2":19.253333333333334,"result":"better"},{"area":"Pooled, 100 seeds","item":"Bursty / random, starved slots","v1":0.22,"v2":0.0,"result":"better"},{"area":"Official run","item":"Bursty / random, deadlocks / 1,000 events","v1":24.200000000000003,"v2":1.1333333333333333,"result":"better"},{"area":"Official run","item":"Bursty / random, requests queued (%)","v1":38.48507904691267,"v2":32.750408875600705,"result":"better"},{"area":"Official run","item":"Bursty / random, throughput","v1":11.166666666666668,"v2":19.233333333333334,"result":"better"},{"area":"Official run","item":"Bursty / random, starved slots","v1":0.35,"v2":0.0,"result":"better"},{"area":"Pooled, 100 seeds","item":"Gradually escalating, deadlocks / 1,000 events","v1":2.92,"v2":1.2266666666666668,"result":"better"},{"area":"Pooled, 100 seeds","item":"Gradually escalating, requests queued (%)","v1":36.54371601103566,"v2":10.232346048906017,"result":"better"},{"area":"Pooled, 100 seeds","item":"Gradually escalating, throughput","v1":92.82,"v2":95.2533333333333,"result":"better"},{"area":"Pooled, 100 seeds","item":"Gradually escalating, starved slots","v1":0.13,"v2":0.0,"result":"better"},{"area":"Official run","item":"Gradually escalating, deadlocks / 1,000 events","v1":1.5333333333333334,"v2":1.1666666666666665,"result":"better"},{"area":"Official run","item":"Gradually escalating, requests queued (%)","v1":31.58085671252947,"v2":8.075798231821452,"result":"better"},{"area":"Official run","item":"Gradually escalating, throughput","v1":92.96666666666667,"v2":92.73333333333332,"result":"worse"},{"area":"Official run","item":"Gradually escalating, starved slots","v1":0.1,"v2":0.0,"result":"better"},{"area":"Pooled, 100 seeds","item":"Mixed, deadlocks / 1,000 events","v1":8.173333333333334,"v2":2.0399999999999996,"result":"better"},{"area":"Pooled, 100 seeds","item":"Mixed, requests queued (%)","v1":34.96165879118825,"v2":20.154513733020732,"result":"better"},{"area":"Pooled, 100 seeds","item":"Mixed, throughput","v1":49.39333333333334,"v2":52.58000000000001,"result":"better"},{"area":"Pooled, 100 seeds","item":"Mixed, starved slots","v1":0.48,"v2":0.0,"result":"better"},{"area":"Official run","item":"Mixed, deadlocks / 1,000 events","v1":6.1000000000000005,"v2":1.2666666666666666,"result":"better"},{"area":"Official run","item":"Mixed, requests queued (%)","v1":28.587318160561427,"v2":20.838789477143358,"result":"better"},{"area":"Official run","item":"Mixed, throughput","v1":48.099999999999994,"v2":54.36666666666666,"result":"better"},{"area":"Official run","item":"Mixed, starved slots","v1":0.7,"v2":0.0,"result":"better"},{"area":"Model accuracy","item":"fixed, top-1, 3 lives","v1":96.8,"v2":96.8,"result":"tie"},{"area":"Model accuracy","item":"fixed, log-likelihood, 3 lives","v1":-0.08698932005992044,"v2":-0.08698932005992044,"result":"tie"},{"area":"Model accuracy","item":"fixed, top-1, 10 lives","v1":96.77141627206198,"v2":96.78755919070169,"result":"better"},{"area":"Model accuracy","item":"fixed, log-likelihood, 10 lives","v1":-0.08728933629877167,"v2":-0.08548692431793206,"result":"better"},{"area":"Model accuracy","item":"bursty, top-1, 3 lives","v1":21.8930988765613,"v2":23.166561998464868,"result":"better"},{"area":"Model accuracy","item":"bursty, log-likelihood, 3 lives","v1":-4.1578403542150895,"v2":-3.9797758984013702,"result":"better"},{"area":"Model accuracy","item":"bursty, top-1, 10 lives","v1":25.373186383928573,"v2":25.889369419642858,"result":"better"},{"area":"Model accuracy","item":"bursty, log-likelihood, 10 lives","v1":-3.043246692579244,"v2":-2.752710234676635,"result":"better"},{"area":"Model accuracy","item":"escalating, top-1, 3 lives","v1":77.62820512820512,"v2":100.0,"result":"better"},{"area":"Model accuracy","item":"escalating, log-likelihood, 3 lives","v1":-0.3865668663360921,"v2":-0.12087144261917618,"result":"better"},{"area":"Model accuracy","item":"escalating, top-1, 10 lives","v1":77.62820512820512,"v2":100.0,"result":"better"},{"area":"Model accuracy","item":"escalating, log-likelihood, 10 lives","v1":-0.3865668663360921,"v2":-0.047050955742149264,"result":"better"},{"area":"Early warning","item":"Fixed-pattern, recall, all","v1":74.2296918767507,"v2":74.2296918767507,"result":"tie"},{"area":"Early warning","item":"Fixed-pattern, recall, warnable","v1":100.0,"v2":100.0,"result":"tie"},{"area":"Early warning","item":"Fixed-pattern, precision","v1":77.98784604996624,"v2":89.53488372093024,"result":"better"},{"area":"Early warning","item":"Fixed-pattern, F1","v1":87.63277693474961,"v2":94.47852760736198,"result":"better"},{"area":"Early warning","item":"Fixed-pattern, median lead","v1":8.0,"v2":13.0,"result":"better"},{"area":"Early warning","item":"Bursty / random, recall, all","v1":44.38202247191011,"v2":90.4494382022472,"result":"better"},{"area":"Early warning","item":"Bursty / random, recall, warnable","v1":48.76543209876543,"v2":99.38271604938272,"result":"better"},{"area":"Early warning","item":"Bursty / random, precision","v1":52.3876404494382,"v2":52.875,"result":"better"},{"area":"Early warning","item":"Bursty / random, F1","v1":50.511682122837996,"v2":69.02587596160667,"result":"better"},{"area":"Early warning","item":"Bursty / random, median lead","v1":24.0,"v2":35.0,"result":"better"},{"area":"Early warning","item":"Gradually escalating, recall, all","v1":92.15686274509804,"v2":92.15686274509804,"result":"tie"},{"area":"Early warning","item":"Gradually escalating, recall, warnable","v1":100.0,"v2":100.0,"result":"tie"},{"area":"Early warning","item":"Gradually escalating, precision","v1":53.97727272727273,"v2":67.71488469601677,"result":"better"},{"area":"Early warning","item":"Gradually escalating, F1","v1":70.11070110701108,"v2":80.75,"result":"better"},{"area":"Early warning","item":"Gradually escalating, median lead","v1":47.0,"v2":36.0,"result":"worse"},{"area":"Early warning","item":"Mixed, recall, all","v1":83.05084745762711,"v2":83.05084745762711,"result":"tie"},{"area":"Early warning","item":"Mixed, recall, warnable","v1":97.51243781094527,"v2":97.51243781094527,"result":"tie"},{"area":"Early warning","item":"Mixed, precision","v1":66.27692307692308,"v2":65.67164179104478,"result":"worse"},{"area":"Early warning","item":"Mixed, F1","v1":78.91628985919021,"v2":78.48562067710229,"result":"worse"},{"area":"Early warning","item":"Mixed, median lead","v1":14.0,"v2":17.0,"result":"better"},{"area":"Behaviour shift","item":"deadlocks in the run","v1":11.1,"v2":1.95,"result":"better"},{"area":"Behaviour shift","item":"deadlocks in the transition","v1":8.4,"v2":1.95,"result":"better"},{"area":"Behaviour shift","item":"queued in the transition (%)","v1":40.1387380004643,"v2":21.178663381655802,"result":"better"},{"area":"Behaviour shift","item":"shifted processes detected","v1":59.0,"v2":60.0,"result":"better"},{"area":"Behaviour shift","item":"detection, own events","v1":8.966101694915254,"v2":3.266666666666667,"result":"better"},{"area":"Behaviour shift","item":"detection, ticks","v1":70.675,"v2":23.566666666666666,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.02, deadlocks","v1":5.199999999999999,"v2":0.8,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.02, queued (%)","v1":47.72234486374888,"v2":24.171554383348855,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.02, throughput","v1":45.6,"v2":55.46666666666666,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.05, deadlocks","v1":6.533333333333334,"v2":1.0666666666666667,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.05, queued (%)","v1":46.93588745143238,"v2":20.156854946217592,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.05, throughput","v1":52.666666666666664,"v2":55.46666666666666,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.1, deadlocks","v1":7.333333333333334,"v2":1.4666666666666666,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.1, queued (%)","v1":35.10814652866056,"v2":26.63596224360979,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.1, throughput","v1":43.86666666666666,"v2":50.53333333333334,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.2, deadlocks","v1":8.8,"v2":1.7333333333333332,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.2, queued (%)","v1":31.22112234130709,"v2":12.747244372711828,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.2, throughput","v1":52.8,"v2":55.73333333333333,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.3, deadlocks","v1":8.8,"v2":2.2666666666666666,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.3, queued (%)","v1":26.976992785928495,"v2":11.439922789399418,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.3, throughput","v1":44.266666666666666,"v2":52.0,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.5, deadlocks","v1":10.533333333333333,"v2":2.0,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.5, queued (%)","v1":14.28835779338666,"v2":10.911359052947686,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 0.5, throughput","v1":56.8,"v2":56.8,"result":"tie"},{"area":"Threshold sweep","item":"\u03c4 = 1.01, deadlocks","v1":22.53333333333333,"v2":18.4,"result":"better"},{"area":"Threshold sweep","item":"\u03c4 = 1.01, queued (%)","v1":0.0,"v2":6.161621992558714,"result":"worse"},{"area":"Threshold sweep","item":"\u03c4 = 1.01, throughput","v1":40.4,"v2":54.53333333333334,"result":"better"},{"area":"Decision latency","item":"K = 20, H = 10 (ms)","v1":0.6514857879957398,"v2":0.6935715154376662,"result":"worse"},{"area":"Decision latency","item":"K = 20, H = 20 (ms)","v1":1.382126517245064,"v2":1.8897668535230103,"result":"worse"},{"area":"Decision latency","item":"K = 20, H = 50 (ms)","v1":12.832166399367747,"v2":5.57912044066548,"result":"better"},{"area":"Decision latency","item":"K = 20, H = 100 (ms)","v1":31.985741694155177,"v2":6.605034964262879,"result":"better"},{"area":"Decision latency","item":"K = 50, H = 10 (ms)","v1":0.7868446366666128,"v2":0.9762806115164693,"result":"worse"},{"area":"Decision latency","item":"K = 50, H = 20 (ms)","v1":1.8596667188251417,"v2":3.05853889036972,"result":"worse"},{"area":"Decision latency","item":"K = 50, H = 50 (ms)","v1":14.382122935683347,"v2":6.49928052635924,"result":"better"},{"area":"Decision latency","item":"K = 50, H = 100 (ms)","v1":9.536535376594532,"v2":3.2417765945228028,"result":"better"},{"area":"Decision latency","item":"K = 100, H = 10 (ms)","v1":0.9393549167438999,"v2":1.0091266082323709,"result":"worse"},{"area":"Decision latency","item":"K = 100, H = 20 (ms)","v1":2.119529459039892,"v2":1.559516460820819,"result":"better"},{"area":"Decision latency","item":"K = 100, H = 50 (ms)","v1":6.266907584200849,"v2":2.91882678228518,"result":"better"},{"area":"Decision latency","item":"K = 100, H = 100 (ms)","v1":12.229099377285127,"v2":3.5614968555702737,"result":"better"},{"area":"Decision latency","item":"K = 200, H = 10 (ms)","v1":1.6968576415573877,"v2":1.3264395441022796,"result":"better"},{"area":"Decision latency","item":"K = 200, H = 20 (ms)","v1":3.453971816644079,"v2":2.2342759282651388,"result":"better"},{"area":"Decision latency","item":"K = 200, H = 50 (ms)","v1":8.837203993023987,"v2":4.116608850420622,"result":"better"},{"area":"Decision latency","item":"K = 200, H = 100 (ms)","v1":17.573255329689346,"v2":4.8186111467666075,"result":"better"},{"area":"Decision latency","item":"Fixed-pattern, default settings (ms)","v1":2.556980753254122,"v2":2.8018390576375647,"result":"worse"},{"area":"Decision latency","item":"Bursty / random, default settings (ms)","v1":3.4022907253840207,"v2":0.04463990055526951,"result":"better"},{"area":"Decision latency","item":"Gradually escalating, default settings (ms)","v1":4.036019600163617,"v2":4.046409048059913,"result":"worse"},{"area":"Decision latency","item":"Mixed, default settings (ms)","v1":4.182077931206961,"v2":2.7426233220286975,"result":"better"}],"sources":{"v1":{"fixed":{"total":34,"learned":16,"fallback":1,"forced":17},"bursty":{"total":194,"learned":1,"fallback":92,"forced":101},"escalating":{"total":5,"learned":1,"fallback":1,"forced":3},"mixed":{"total":55,"learned":5,"fallback":18,"forced":32}},"v2":{"fixed":{"total":8,"learned":5,"fallback":0,"forced":3},"bursty":{"total":8,"learned":0,"fallback":8,"forced":0},"escalating":{"total":2,"learned":2,"fallback":0,"forced":0},"mixed":{"total":11,"learned":0,"fallback":5,"forced":6}}}};</script>
+<script>
+(function () {
+'use strict';
+const D = DATA;
+const $ = (s, r = document) => r.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function h(tag, attrs = {}, html) {
+  const e = document.createElement(tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+const f1 = x => (x === null || x === undefined || Number.isNaN(x)) ? '–' : (+x).toFixed(1);
+const f2 = x => (x === null || x === undefined || Number.isNaN(x)) ? '–' : (+x).toFixed(2);
+const f3 = x => (x === null || x === undefined || Number.isNaN(x)) ? '–' : (+x).toFixed(3);
+
+// ---------------------------------------------------------------- theme
+function setTheme(t) {
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  ['auto', 'light', 'dark'].forEach(x => $('#th-' + x).setAttribute('aria-pressed', String(x === t)));
+  try { localStorage.setItem('sage-theme', t); } catch (e) {}
+  rerender.forEach(fn => fn());
+}
+const rerender = [];
+['auto', 'light', 'dark'].forEach(x => $('#th-' + x).addEventListener('click', () => setTheme(x)));
+try { const t = localStorage.getItem('sage-theme'); if (t && t !== 'auto') { document.documentElement.setAttribute('data-theme', t);
+  ['auto', 'light', 'dark'].forEach(x => $('#th-' + x).setAttribute('aria-pressed', String(x === t))); } } catch (e) {}
+
+// ---------------------------------------------------------------- shared names
+const POL = ['sage', 'sage_v1', 'bankers', 'bankers_nodecl', 'reactive', 'timeout', 'wait_die', 'wound_wait'];
+const NAME = { sage: 'SAGE v2', sage_v1: 'SAGE v1', bankers: "Banker's (true maxima)", bankers_nodecl: "Banker's (no declaration)",
+  reactive: 'Reactive DFS', timeout: 'Timeout', wait_die: 'Wait-Die', wound_wait: 'Wound-Wait' };
+const FAMS = ['fixed', 'bursty', 'escalating', 'mixed', 'shift'];
+const FAM = { fixed: 'Fixed-pattern', bursty: 'Bursty / random', escalating: 'Gradually escalating', mixed: 'Mixed', shift: 'Behaviour shift' };
+const col = p => css('--m-' + p);
+const METRIC = {
+  throughput: { label: 'Completions per 1,000 events', short: 'Throughput', hib: true },
+  turnaround: { label: 'Turnaround: events per completed life', short: 'Turnaround', hib: false },
+  deadlock_rate: { label: 'Deadlocks per 1,000 events', short: 'Deadlocks', hib: false },
+  rollback_rate: { label: 'Rollbacks per 1,000 events (any cause)', short: 'Rollbacks', hib: false },
+  wasted_rate: { label: 'Program steps undone per 1,000 events', short: 'Wasted work', hib: false },
+  queue_rate: { label: 'Requests queued (%)', short: 'Queued', hib: false },
+  starved: { label: 'Starved process slots per run', short: 'Starved', hib: false },
+  latency_ms: { label: 'Milliseconds per decision', short: 'Latency', hib: false } };
+const mm = (p, f, k) => { const v = D.main[p] && D.main[p][f] && D.main[p][f][k]; return v ? v[0] : NaN; };
+const se = (p, f, k) => { const v = D.main[p] && D.main[p][f] && D.main[p][f][k]; return v ? v[1] : 0; };
+
+// ---------------------------------------------------------------- tooltip
+const tip = $('#tip');
+function showTip(e, html) { tip.innerHTML = html; tip.style.opacity = 1; moveTip(e); }
+function moveTip(e) { const x = Math.min(e.clientX + 14, window.innerWidth - 270); tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+function hideTip() { tip.style.opacity = 0; }
+
+// ---------------------------------------------------------------- chips helper
+function chips(container, items, current, onPick, swatch) {
+  const host = typeof container === 'string' ? $(container) : container;
+  host.innerHTML = '';
+  items.forEach(([key, label]) => {
+    const b = h('button', { class: 'chip', type: 'button', 'aria-pressed': String(key === current) });
+    b.innerHTML = (swatch ? '<span class="sw" style="background:' + col(key) + '"></span>' : '') + label;
+    b.addEventListener('click', () => { host.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true'); onPick(key); });
+    host.appendChild(b);
+  });
+}
+
+// ---------------------------------------------------------------- charts
+function niceMax(v) { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p;
+  return ([1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find(s => n <= s + 1e-9)) * p; }
+function groupedBars(host, cats, series, getV, getE, opts) {
+  host.innerHTML = '';
+  const W = 760, H = opts.height || 300, L = 48, R = 8, T = 14, B = 46;
+  const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.label || 'chart' }, host);
+  let vmax = 0;
+  cats.forEach(c => series.forEach(s => { const v = getV(s, c) + (getE ? getE(s, c) : 0); if (v > vmax) vmax = v; }));
+  const ymax = niceMax(vmax * 1.05), y = v => T + (H - T - B) * (1 - v / ymax);
+  for (let i = 0; i <= 4; i++) { const v = ymax * i / 4, yy = y(v);
+    el('line', { class: 'grid', x1: L, x2: W - R, y1: yy, y2: yy }, svg);
+    const t = el('text', { x: L - 6, y: yy + 4, 'text-anchor': 'end' }, svg); t.textContent = ymax >= 10 ? Math.round(v) : (+v.toFixed(2)); }
+  el('line', { class: 'axis', x1: L, x2: W - R, y1: y(0), y2: y(0) }, svg);
+  const gw = (W - L - R) / cats.length, bw = Math.min(14, (gw - 10) / series.length);
+  cats.forEach((c, ci) => {
+    const x0 = L + gw * ci + (gw - bw * series.length) / 2;
+    const lab = opts.catLabel ? opts.catLabel(c) : c;
+    lab.split('\n').forEach((line, li) => { const t = el('text', { x: L + gw * ci + gw / 2, y: H - B + 18 + li * 13, 'text-anchor': 'middle' }, svg); t.textContent = line; });
+    series.forEach((s, si) => {
+      const v = getV(s, c); if (!(v >= 0)) return;
+      const x = x0 + si * bw, top = y(v);
+      const r = el('rect', { class: 'bar', x: x + 0.75, width: Math.max(1, bw - 1.5), y: top, height: Math.max(0, y(0) - top),
+        rx: 2, fill: opts.color(s) }, svg);
+      r.style.animationDelay = (ci * 60 + si * 25) + 'ms';
+      if (getE) { const e = getE(s, c); if (e > 0) el('line', { class: 'err fade', x1: x + bw / 2, x2: x + bw / 2, y1: y(v + e), y2: y(Math.max(0, v - e)) }, svg); }
+      const hit = el('rect', { x, width: bw, y: T, height: H - T - B, fill: 'transparent' }, svg);
+      hit.addEventListener('mousemove', e => showTip(e, '<b>' + opts.name(s) + '</b><br>' + (opts.catName ? opts.catName(c) : c) + ': ' + opts.fmt(v) + (getE && getE(s, c) ? ' ± ' + opts.fmt(getE(s, c)) : '')));
+      hit.addEventListener('mouseleave', hideTip);
+    });
+  });
+  return svg;
+}
+function lineChart(host, xs, series, getV, opts) {
+  host.innerHTML = '';
+  const W = opts.width || 760, H = opts.height || 280, L = 46, R = opts.width ? 22 : 54, T = 18, B = 44;
+  const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.label || 'chart' }, host);
+  if (opts.title) { const t = el('text', { x: L, y: 11 }, svg); t.textContent = opts.title; t.setAttribute('style', 'font-weight:600;fill:var(--ink)'); }
+  let vmax = 0; series.forEach(s => xs.forEach(x => { const v = getV(s, x); if (v > vmax) vmax = v; }));
+  const ymax = niceMax(vmax * 1.05), y = v => T + 8 + (H - T - 8 - B) * (1 - v / ymax);
+  const xp = i => L + (W - L - R) * (xs.length === 1 ? .5 : i / (xs.length - 1));
+  for (let i = 0; i <= 4; i++) { const v = ymax * i / 4, yy = y(v); el('line', { class: 'grid', x1: L, x2: W - R, y1: yy, y2: yy }, svg);
+    const t = el('text', { x: L - 6, y: yy + 4, 'text-anchor': 'end' }, svg); t.textContent = ymax >= 10 ? Math.round(v) : (+v.toFixed(2)); }
+  xs.forEach((x, i) => { (opts.xLabel ? opts.xLabel(x) : String(x)).split('\n').forEach((line, li) => {
+    const t = el('text', { x: xp(i), y: H - B + 18 + li * 13, 'text-anchor': 'middle' }, svg); t.textContent = line; }); });
+  series.forEach(s => {
+    const pts = xs.map((x, i) => [xp(i), y(getV(s, x))]).filter(p => isFinite(p[1]));
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const path = el('path', { class: 'ln draw', d, stroke: opts.color(s), 'stroke-width': s === 'sage' ? 3 : 1.8 }, svg);
+    path.style.setProperty('--len', String(Math.ceil(path.getTotalLength ? path.getTotalLength() : 0) + 1));
+    xs.forEach((x, i) => { const v = getV(s, x); if (!isFinite(v)) return;
+      const c = el('circle', { class: 'fade', cx: xp(i), cy: y(v), r: s === 'sage' ? 4.5 : 3.2, fill: opts.color(s), stroke: css('--panel'), 'stroke-width': 1.2 }, svg);
+      c.addEventListener('mousemove', e => showTip(e, '<b>' + opts.name(s) + '</b><br>' + (opts.xName ? opts.xName(x) : x) + ': ' + opts.fmt(v)));
+      c.addEventListener('mouseleave', hideTip); });
+  });
+}
+function legend(host, keys) { $(host).innerHTML = keys.map(p => '<span><i style="background:' + col(p) + '"></i>' + NAME[p] + '</span>').join(''); }
+
+// ---------------------------------------------------------------- hero stats
+(function heroStats() {
+  const pooled = (k, ver, fam) => { const vals = Object.values(D.seedsets).map(s => s[ver][fam][k]); return vals.reduce((a, b) => a + b, 0) / vals.length; };
+  const bestNodecl = FAMS.filter(f => POL.filter(p => p !== 'bankers').every(p => p === 'sage' || mm('sage', f, 'throughput') >= mm(p, f, 'throughput'))).length;
+  const items = [
+    [f1(mm('sage_v1', 'bursty', 'deadlock_rate')), f1(mm('sage', 'bursty', 'deadlock_rate')), 'deadlocks per 1,000 events on random workloads, v1 to v2'],
+    [f1(mm('reactive', 'mixed', 'deadlock_rate')), f1(mm('sage', 'mixed', 'deadlock_rate')), 'deadlocks per 1,000 events on the mixed workload, Reactive DFS to SAGE v2'],
+    [f1(mm('sage_v1', 'mixed', 'queue_rate')) + '%', f1(mm('sage', 'mixed', 'queue_rate')) + '%', 'requests queued on the mixed workload, v1 to v2'],
+    [null, bestNodecl + ' of ' + FAMS.length, 'workloads where SAGE v2 completes the most work among methods that need no declared demands']];
+  $('#hero-stats').innerHTML = items.map(([a, b, k]) => '<div class="stat"><div class="v mono">' + (a ? '<span class="from">' + a + '</span>' : '') + b + '</div><div class="k">' + k + '</div></div>').join('');
+})();
+
+// ---------------------------------------------------------------- RAG drawing
+const RAGPOS = { P1: [120, 125], P2: [440, 125], R1: [280, 40], R2: [280, 210] };
+function drawRag(svg, st, scale) {
+  svg.innerHTML = '';
+  const pos = scale ? Object.fromEntries(Object.entries(RAGPOS).map(([k, [x, y]]) => [k, [x * scale[0] + scale[2], y * scale[1] + scale[3]]])) : RAGPOS;
+  const defs = el('defs', {}, svg);
+  [['ah', 'var(--ink-2)'], ['aw', 'var(--bad)'], ['aq', 'var(--hold)']].forEach(([id, c]) => {
+    const mk = el('marker', { id: svg.id + id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+    el('path', { d: 'M0 0 L10 5 L0 10 z', fill: c }, mk); });
+  const edge = (a, b, cls, mark) => { const [x1, y1] = pos[a], [x2, y2] = pos[b], dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy);
+    const ra = a[0] === 'P' ? 26 : 24, rb = b[0] === 'P' ? 30 : 28;
+    el('line', { class: 'edge ' + cls, x1: x1 + dx / d * ra, y1: y1 + dy / d * ra, x2: x2 - dx / d * rb, y2: y2 - dy / d * rb, 'marker-end': 'url(#' + svg.id + mark + ')' }, svg); };
+  Object.entries(st.hold || {}).forEach(([r, p]) => edge(r, p, 'e-hold', 'ah'));
+  Object.entries(st.wait || {}).forEach(([p, r]) => edge(p, r, 'e-wait', 'aw'));
+  Object.entries(st.queue || {}).forEach(([p, r]) => edge(p, r, 'e-queue', 'aq'));
+  ['R1', 'R2'].forEach(r => { const [x, y] = pos[r]; el('rect', { class: 'node-r', x: x - 22, y: y - 18, width: 44, height: 36, rx: 6 }, svg);
+    const t = el('text', { x, y: y + 5, 'text-anchor': 'middle' }, svg); t.textContent = r;
+    if (!scale) { const s = el('text', { x, y: r === 'R1' ? y - 24 : y + 34, 'text-anchor': 'middle' }, svg); s.textContent = r === 'R1' ? 'printer' : 'scanner'; s.setAttribute('style', 'font:12px var(--body);fill:var(--ink-3)'); } });
+  ['P1', 'P2'].forEach(p => { const [x, y] = pos[p];
+    const ring = el('circle', { class: 'deadring' + (st.dead ? ' on' : ''), cx: x, cy: y, r: 30, style: 'transform-origin:' + x + 'px ' + y + 'px' }, svg);
+    const c = el('circle', { class: 'node-p' + (st.flash === p ? ' flash' : ''), cx: x, cy: y, r: 24 }, svg);
+    if (st.done && st.done.includes(p)) { c.setAttribute('style', 'stroke:var(--good);stroke-width:2.4'); }
+    const t = el('text', { x, y: y + 5, 'text-anchor': 'middle' }, svg); t.textContent = p;
+    if (!scale) { const s = el('text', { x, y: y + 44, 'text-anchor': 'middle' }, svg); s.textContent = p === 'P1' ? 'older' : 'younger'; s.setAttribute('style', 'font:12px var(--body);fill:var(--ink-3)'); } });
+}
+
+// hero duo animation
+(function duo() {
+  const A = [{}, { hold: { R1: 'P1' } }, { hold: { R1: 'P1', R2: 'P2' } }, { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2' } },
+             { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2', P2: 'R1' }, dead: true }];
+  const Bs = [{}, { hold: { R1: 'P1' } }, { hold: { R1: 'P1' }, queue: { P2: 'R2' } }, { hold: { R1: 'P1', R2: 'P1' }, queue: { P2: 'R2' } },
+              { done: ['P1'], hold: { R2: 'P2' } }];
+  const sc = [0.55, 0.72, 2, 1];
+  let i = 0;
+  function tick() { drawRag($('#duo-a'), A[i], sc); drawRag($('#duo-b'), Bs[i], sc);
+    $('#duo-a-tag').textContent = i === 4 ? 'deadlock' : 'running'; $('#duo-a-tag').className = 'tag ' + (i === 4 ? 'bad' : '');
+    $('#duo-b-tag').textContent = i >= 2 && i <= 3 ? 'request held' : i === 4 ? 'safe, P1 done' : 'running'; $('#duo-b-tag').className = 'tag ' + (i >= 2 && i <= 3 ? 'hold' : i === 4 ? 'good' : '');
+    i = (i + 1) % A.length; }
+  i = 4; tick();                                  // open on the outcome, then replay from the start
+  if (!RM) setInterval(tick, 1500);
+  rerender.push(() => { const k = (i + A.length - 1) % A.length; drawRag($('#duo-a'), A[k], sc); drawRag($('#duo-b'), Bs[k], sc); });
+})();
+
+// RAG playground
+const COMMON = [
+  { t: 'Both processes are ready. P1 started first, so it is older.' },
+  { hold: { R1: 'P1' }, t: 'P1 requests the printer R1. It is free, so it is granted.' }];
+const FLOWS = {
+  reactive: [...COMMON,
+    { hold: { R1: 'P1', R2: 'P2' }, t: 'P2 requests the scanner R2. It is free, so it is granted.' },
+    { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2' }, t: 'P1 requests R2, which P2 holds. P1 blocks. The cycle check finds no cycle yet.' },
+    { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2', P2: 'R1' }, dead: true, t: 'P2 requests R1, which P1 holds. P2 blocks, and the check now finds a cycle: deadlock.' },
+    { hold: { R1: 'P1' }, wait: { P1: 'R2' }, flash: 'P2', t: 'Recovery: P2 (it closed the cycle and has been rolled back least often) is rolled back and releases R2.' },
+    { hold: { R1: 'P1', R2: 'P1' }, t: 'P1 gets R2 and finishes. One deadlock, one rollback; P2 must redo its work.' }],
+  timeout: [...COMMON,
+    { hold: { R1: 'P1', R2: 'P2' }, t: 'P2 requests R2. Granted.' },
+    { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2' }, t: 'P1 requests R2 and blocks.' },
+    { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2', P2: 'R1' }, dead: true, t: 'P2 requests R1 and blocks: deadlock. Nobody checks for cycles; both wait.' },
+    { hold: { R2: 'P2' }, wait: { P2: 'R1' }, flash: 'P1', t: 'After 50 events P1, the longest waiter, times out and is rolled back, releasing R1.' },
+    { hold: { R1: 'P2', R2: 'P2' }, t: 'P2 gets R1 and finishes. The deadlock lasted until the timeout fired.' }],
+  wait_die: [...COMMON,
+    { hold: { R1: 'P1', R2: 'P2' }, t: 'P2 requests R2. Granted.' },
+    { hold: { R1: 'P1', R2: 'P2' }, wait: { P1: 'R2' }, t: 'P1 requests R2, held by the younger P2. An older requester may wait for a younger holder, so P1 waits.' },
+    { hold: { R1: 'P1' }, wait: { P1: 'R2' }, flash: 'P2', t: 'P2 requests R1, held by the older P1. A younger requester may not wait for an older holder: P2 dies (is rolled back) and releases R2.' },
+    { hold: { R1: 'P1', R2: 'P1' }, t: 'P1 gets R2 and finishes. No deadlock is possible, at the price of a rollback.' }],
+  wound_wait: [...COMMON,
+    { hold: { R1: 'P1', R2: 'P2' }, t: 'P2 requests R2. Granted.' },
+    { hold: { R1: 'P1' }, flash: 'P2', t: 'P1 requests R2, held by the younger P2. An older requester wounds the holder: P2 is rolled back and releases R2.' },
+    { hold: { R1: 'P1', R2: 'P1' }, t: 'P1 takes R2 at once and finishes. P2 restarts later. No deadlock, one rollback.' }],
+  bankers: [...COMMON,
+    { hold: { R1: 'P1' }, queue: { P2: 'R2' }, t: "P2 requests R2. Both processes declared they need R1 and R2. If P2 got R2, P1 could not finish (needs R2) and P2 could not finish (needs R1): unsafe. P2's request is queued." },
+    { hold: { R1: 'P1', R2: 'P1' }, queue: { P2: 'R2' }, t: 'P1 requests R2. Granting keeps a safe order (P1 can finish), so it is granted.' },
+    { done: ['P1'], hold: { R2: 'P2' }, t: 'P1 finishes and releases both. P2 now gets R2 safely. No deadlock and no rollback, but it needed the declared maxima.' }],
+  bankers_nodecl: [...COMMON,
+    { hold: { R1: 'P1' }, queue: { P2: 'R2' }, t: 'P2 requests R2. Nothing was declared, so every process must be assumed to need every resource; P2 holding anything would be unsafe. Queued.' },
+    { hold: { R1: 'P1', R2: 'P1' }, queue: { P2: 'R2' }, t: 'P1 requests R2: granted, P1 is the only holder.' },
+    { done: ['P1'], hold: { R2: 'P2' }, t: 'P1 finishes; P2 continues. Safe here, but in larger systems this rule lets only one process hold resources at a time.' }],
+  sage_v1: [...COMMON,
+    { hold: { R1: 'P1' }, queue: { P2: 'R2' }, t: 'P2 requests R2. With enough history, v1 simulates futures and finds a high risk, so it queues the request.' },
+    { hold: { R1: 'P1', R2: 'P1' }, queue: { P2: 'R2' }, t: 'P1 gets R2 (low risk).' },
+    { done: ['P1'], hold: { R2: 'P2' }, t: 'P1 finishes; P2 proceeds. v1 handled this case, but its fallback and stall handler let many other deadlocks through (Section 06).' }],
+  sage: [...COMMON,
+    { hold: { R1: 'P1' }, queue: { P2: 'R2' }, t: 'P2 requests R2. SAGE simulates 100 futures from the learned behaviour: P1 will ask for R2 next and P2 for R1, so the futures deadlock (risk 1.00, verification case 1c). Queued.' },
+    { hold: { R1: 'P1', R2: 'P1' }, queue: { P2: 'R2' }, t: 'P1 requests R2. In the futures P2 stays queued, so nothing can deadlock P1 (risk 0). Granted.' },
+    { done: ['P1'], hold: { R2: 'P2' }, t: 'P1 finishes and releases both; P2 continues. No deadlock, no rollback, and nothing was declared in advance.' }] };
+let ragM = 'sage', ragI = 0, ragTimer = null;
+function ragShow() { const fl = FLOWS[ragM]; const st = fl[ragI]; drawRag($('#rag'), st);
+  $('#rag-text').innerHTML = '<b>' + NAME[ragM] + '</b> · step ' + ragI + ': ' + st.t;
+  $('#rag-count').textContent = (ragI + 1) + ' / ' + fl.length; }
+chips('#rag-methods', POL.map(p => [p, NAME[p]]), ragM, k => { ragM = k; ragI = 0; stopPlay(); ragShow(); }, true);
+function stopPlay() { if (ragTimer) { clearInterval(ragTimer); ragTimer = null; $('#rag-play').textContent = 'Play'; } }
+$('#rag-next').addEventListener('click', () => { stopPlay(); ragI = Math.min(ragI + 1, FLOWS[ragM].length - 1); ragShow(); });
+$('#rag-prev').addEventListener('click', () => { stopPlay(); ragI = Math.max(ragI - 1, 0); ragShow(); });
+$('#rag-play').addEventListener('click', () => { if (ragTimer) return stopPlay(); ragI = 0; ragShow(); $('#rag-play').textContent = 'Pause';
+  ragTimer = setInterval(() => { if (ragI >= FLOWS[ragM].length - 1) return stopPlay(); ragI++; ragShow(); }, 1800); });
+ragShow(); rerender.push(ragShow);
+
+// ---------------------------------------------------------------- method cards
+const CARDS = {
+  sage: ['Learned avoidance', 'Simulates short futures from each process’s learned behaviour, or checks learned claims for unpredictable processes, and queues requests that lead to deadlock.', 'Needs: nothing in advance.'],
+  sage_v1: ['Learned avoidance', 'The first version, as submitted. Same idea; its fallback granted blindly and its risk estimate was biased.', 'Needs: nothing in advance.'],
+  bankers: ['Avoidance', 'Grants a request only if some order still lets every process finish, given their maximum demands.', 'Needs: each process’s exact maximum demand.'],
+  bankers_nodecl: ['Avoidance', 'Banker’s Algorithm when nothing is declared: every process must be assumed to need every resource.', 'Needs: nothing, but becomes very cautious.'],
+  reactive: ['Detection and recovery', 'Grants everything; checks the wait-for graph for a cycle on every block and rolls back a victim.', 'Needs: nothing.'],
+  timeout: ['Detection and recovery', 'Grants everything; never looks for cycles; rolls back any process blocked for 50 events.', 'Needs: nothing.'],
+  wait_die: ['Prevention', 'On a conflict, an older requester waits and a younger one is rolled back, so waits only point from old to young and no cycle can form.', 'Needs: process timestamps.'],
+  wound_wait: ['Prevention', 'On a conflict, an older requester rolls back the younger holder and takes the resource; a younger requester waits.', 'Needs: process timestamps.'] };
+$('#method-cards').innerHTML = POL.map(p => '<div class="mcard"><div class="top"><i style="background:var(--m-' + p + ')"></i><h4>' + NAME[p] + '</h4></div><div class="kind">' + CARDS[p][0] + '</div><p>' + CARDS[p][1] + '</p><div class="needs">' + CARDS[p][2] + '</div></div>').join('');
+
+// ---------------------------------------------------------------- decision flow
+const FBOX = {
+  req: [6, 140, 118, 50, 'Request for a\nfree resource'],
+  trust: [150, 140, 156, 50, 'Model trusted?\ncold · uncertain · drift'],
+  sim: [340, 60, 164, 50, 'Simulate K futures\nrisk = deadlocked share'],
+  claims: [340, 220, 164, 50, 'Safety check with\nlearned claims'],
+  grant: [634, 60, 150, 50, 'Grant'],
+  queue: [634, 220, 150, 50, 'Queue (re-check\non every release)'] };
+const PATHS = {
+  predictable: { boxes: ['req', 'trust', 'sim', 'grant'], wires: ['w1', 'w2', 'w4'], text: 'A fixed-pattern process with plenty of history: the model is trusted, so SAGE simulates 100 futures. Few of them deadlock (risk below τ = 0.10), so the request is granted.' },
+  risky: { boxes: ['req', 'trust', 'sim', 'queue'], wires: ['w1', 'w2', 'w5'], text: 'The same kind of process asking in a conflicting order: in many simulated futures the requester ends up on a cycle (risk at least τ), so the request is queued and re-checked whenever a resource is released.' },
+  random: { boxes: ['req', 'trust', 'claims', 'queue'], wires: ['w1', 'w3', 'w7'], text: 'A near-random (bursty) process: its model cannot predict it, so SAGE uses the safety check with the resources this process has been seen to use. Here the state would become unsafe, so the request is queued.' },
+  drift: { boxes: ['req', 'trust', 'claims', 'grant'], wires: ['w1', 'w3', 'w6'], text: 'A process whose behaviour has just changed: the CUSUM drift test fires after two or three never-seen events, the model is not trusted until it relearns, and the safety check decides. Here the state stays safe, so the request is granted.' } };
+let flowK = 'predictable', flowAnim = null;
+function drawFlow() {
+  const svg = $('#flow'); svg.innerHTML = '';
+  const c = k => { const [x, y, w, hh] = FBOX[k]; return [x + w / 2, y + hh / 2, x, y, w, hh]; };
+  const wires = { w1: ['req', 'trust'], w2: ['trust', 'sim'], w3: ['trust', 'claims'], w4: ['sim', 'grant'], w5: ['sim', 'queue'], w6: ['claims', 'grant'], w7: ['claims', 'queue'] };
+  const P = PATHS[flowK];
+  const wd = {};
+  Object.entries(wires).forEach(([id, [a, b]]) => { const A = c(a), Bx = c(b);
+    const x1 = A[2] + A[4], y1 = A[1], x2 = Bx[2], y2 = Bx[1], mx = (x1 + x2) / 2;
+    const d = `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`; wd[id] = d;
+    el('path', { class: 'wire' + (P.wires.includes(id) ? ' on' : ''), d }, svg); });
+  // wire labels sit on the wire itself, on a small panel-coloured plate so crossing wires stay readable
+  const lab = (w, at, t) => { const tmp = el('path', { d: wd[w], fill: 'none', stroke: 'none' }, svg);
+    const pt = tmp.getPointAtLength(tmp.getTotalLength() * at); tmp.remove();
+    const on = P.wires.includes(w), wdt = t.length * 6.9 + 10;
+    el('rect', { x: pt.x - wdt / 2, y: pt.y - 9, width: wdt, height: 18, rx: 9, fill: css('--panel'), stroke: on ? css('--accent') : css('--rule') }, svg);
+    const e = el('text', { x: pt.x, y: pt.y + 4, 'text-anchor': 'middle' }, svg); e.textContent = t;
+    e.setAttribute('style', 'font:11px var(--mono);fill:' + (on ? 'var(--accent-ink)' : 'var(--ink-3)')); };
+  lab('w2', .5, 'yes'); lab('w3', .5, 'no'); lab('w4', .5, 'risk < τ'); lab('w5', .22, 'risk ≥ τ'); lab('w6', .22, 'safe'); lab('w7', .5, 'unsafe');
+  Object.entries(FBOX).forEach(([k, [x, y, w, hh, t]]) => {
+    el('rect', { class: 'box' + (k === 'grant' ? ' ok' : k === 'queue' ? ' no' : '') + (P.boxes.includes(k) ? ' on' : ''), x, y, width: w, height: hh, rx: 8 }, svg);
+    t.split('\n').forEach((line, i, arr) => { const e = el('text', { class: i ? '' : 't', x: x + w / 2, y: y + hh / 2 + 4 + (i - (arr.length - 1) / 2) * 15, 'text-anchor': 'middle' }, svg); e.textContent = line; });
+  });
+  // side notes
+  const note = (x, y, t) => { const e = el('text', { x, y }, svg); e.textContent = t; e.setAttribute('style', 'font:11.5px var(--body);fill:var(--ink-2)'); };
+  note(6, 30, 'Around every decision: starvation guard · stall handler · rollback to the last point holding nothing');
+  const dot = el('circle', { class: 'dot', r: 6, cx: FBOX.req[0], cy: FBOX.req[1] + 25 }, svg);
+  if (!RM) { const segs = P.wires.map(w => { const p = el('path', { d: wd[w], fill: 'none', stroke: 'none' }, svg); return p; });
+    let si = 0, t0 = null; cancelAnimationFrame(flowAnim);
+    const step = ts => { if (!t0) t0 = ts; const seg = segs[si], len = seg.getTotalLength(), k = Math.min(1, (ts - t0) / 700);
+      const pt = seg.getPointAtLength(len * k); dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
+      if (k >= 1) { si++; t0 = ts; if (si >= segs.length) { si = 0; t0 = ts + 600; } }
+      flowAnim = requestAnimationFrame(step); };
+    flowAnim = requestAnimationFrame(step); }
+  $('#flow-text').textContent = P.text;
+}
+chips('#flow-chips', [['predictable', 'Predictable process'], ['risky', 'Predictable, conflicting'], ['random', 'Random process'], ['drift', 'Changed behaviour']], flowK, k => { flowK = k; drawFlow(); });
+drawFlow();
+
+// ---------------------------------------------------------------- rollout animation
+let rollMode = 'risky', rollRaf = null;
+function rollout() {
+  const cv = $('#roll'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height, K = 40, STEPS = 30;
+  const p = rollMode === 'risky' ? 0.45 : 0.04;
+  let seed = Math.floor(Math.random() * 1e9);
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const fut = [];
+  for (let k = 0; k < K; k++) { const dies = rnd() < p ? 4 + Math.floor(rnd() * (STEPS - 6)) : -1; const pts = []; let yv = 0;
+    for (let s = 0; s <= STEPS; s++) { yv += (rnd() - .5) * 0.18; pts.push(yv); if (s === dies) break; } fut.push({ pts, dies }); }
+  const L = 70, R = 40, T = 30, B = 40, cx = s => L + (W - L - R) * s / STEPS, cy = (k, v) => T + (H - T - B) * ((k + .5) / K) + v * 60;
+  const ink = css('--ink-3'), bad = css('--bad'), good = css('--good'), acc = css('--accent'), fg = css('--ink');
+  let t0 = null; cancelAnimationFrame(rollRaf);
+  const draw = ts => { if (!t0) t0 = ts; const prog = RM ? STEPS : Math.min(STEPS, (ts - t0) / 60);
+    ctx.clearRect(0, 0, W, H); ctx.lineWidth = 1.6; let dead = 0;
+    ctx.fillStyle = fg; ctx.font = '600 22px ' + css('--display'); ctx.fillText('now', 14, H / 2 + 6);
+    ctx.fillStyle = ink; ctx.font = '18px ' + css('--mono'); ctx.fillText('H = 30 events →', W - 220, H - 10);
+    fut.forEach((f, k) => { const n = Math.min(f.pts.length - 1, Math.floor(prog)); ctx.strokeStyle = f.dies >= 0 && n >= f.dies ? bad : ink;
+      ctx.globalAlpha = f.dies >= 0 && n >= f.dies ? .95 : .55; ctx.beginPath();
+      for (let s = 0; s <= n; s++) { const x = cx(s), y = cy(k, f.pts[s]); s ? ctx.lineTo(x, y) : ctx.moveTo(L - 10, H / 2) || ctx.lineTo(x, y); } ctx.stroke(); ctx.globalAlpha = 1;
+      if (f.dies >= 0 && n >= f.dies) { dead++; const x = cx(f.dies), y = cy(k, f.pts[f.dies]); ctx.strokeStyle = bad; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6); ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6); ctx.stroke(); ctx.lineWidth = 1.6; } });
+    const risk = dead / K, finished = prog >= STEPS;
+    $('#roll-text').innerHTML = 'Futures deadlocked so far: <b class="mono">' + dead + ' of ' + K + '</b> → risk <b class="mono">' + risk.toFixed(2) + '</b>' +
+      (finished ? (risk >= 0.10 ? ' ≥ τ = 0.10: <span class="tag hold">queue the request</span>' : ' < τ = 0.10: <span class="tag good">grant the request</span>') : ' …');
+    if (!finished) rollRaf = requestAnimationFrame(draw); };
+  rollRaf = requestAnimationFrame(draw);
+}
+chips('#roll-chips', [['risky', 'Conflicting request'], ['safe', 'Harmless request']], rollMode, k => { rollMode = k; rollout(); });
+$('#roll-again').addEventListener('click', rollout); rollout(); rerender.push(rollout);
+
+// ---------------------------------------------------------------- accuracy table
+let accL = 'lives3';
+function accTable() {
+  const A = D.accuracy[accL];
+  let html = '<thead><tr><th>Process type</th><th>v1 top-1 (%)</th><th>v2 top-1 (%)</th><th>v1 log-likelihood</th><th>v2 log-likelihood</th></tr></thead><tbody>';
+  ['fixed', 'bursty', 'escalating'].forEach(p => { const a = A.v1[p], b = A.v2[p];
+    const c1 = b.top1 > a.top1 + 1e-9 ? 'better' : Math.abs(b.top1 - a.top1) < 1e-9 ? 'tie' : 'worse';
+    const c2 = b.loglik > a.loglik + 1e-9 ? 'better' : Math.abs(b.loglik - a.loglik) < 1e-6 ? 'tie' : 'worse';
+    html += '<tr><td>' + p[0].toUpperCase() + p.slice(1) + '</td><td>' + f2(a.top1) + '</td><td class="' + c1 + '">' + f2(b.top1) + '</td><td>' + f3(a.loglik) + '</td><td class="' + c2 + '">' + f3(b.loglik) + '</td></tr>'; });
+  $('#acc-table').innerHTML = html + '</tbody>';
+}
+chips('#acc-chips', [['lives3', '3 lives'], ['lives10', '10 lives']], accL, k => { accL = k; accTable(); }); accTable();
+
+// ---------------------------------------------------------------- v1 deadlock sources
+(function sources() {
+  const host = $('#src-chart'); const fams = ['fixed', 'bursty', 'escalating', 'mixed'];
+  const kinds = [['learned', 'via SAGE risk decision', '--m-sage'], ['fallback', 'via fallback route', '--m-bankers_nodecl'], ['forced', 'via forced (stall) grant', '--m-wound_wait']];
+  const draw = () => { host.innerHTML = ''; const W = 760, H = 250, L = 150, R = 20, T = 10, B = 30;
+    const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}` }, host);
+    let max = 0; fams.forEach(f => ['v1', 'v2'].forEach(v => { max = Math.max(max, D.sources[v][f].total); }));
+    const xm = niceMax(max), x = v => L + (W - L - R) * v / xm, rowH = (H - T - B) / (fams.length * 2);
+    for (let i = 0; i <= 4; i++) { const xv = x(xm * i / 4); el('line', { class: 'grid', x1: xv, x2: xv, y1: T, y2: H - B }, svg);
+      const t = el('text', { x: xv, y: H - B + 16, 'text-anchor': 'middle' }, svg); t.textContent = Math.round(xm * i / 4); }
+    fams.forEach((f, fi) => ['v1', 'v2'].forEach((v, vi) => { const y = T + (fi * 2 + vi) * rowH + 3, s = D.sources[v][f];
+      const t = el('text', { x: L - 8, y: y + rowH / 2 + 1, 'text-anchor': 'end' }, svg); t.textContent = (vi ? '' : FAM[f] + '  ') + v;
+      let acc0 = 0; kinds.forEach(([k, lab, c]) => { const w = x(acc0 + s[k]) - x(acc0); if (w > 0) {
+          const r = el('rect', { class: 'barx', x: x(acc0), y, width: w, height: rowH - 6, fill: css(c), rx: 2 }, svg);
+          r.style.animationDelay = ((fi * 2 + vi) * 70) + 'ms';
+          r.addEventListener('mousemove', e => showTip(e, '<b>' + FAM[f] + ', ' + v + '</b><br>' + lab + ': ' + s[k] + ' of ' + s.total)); r.addEventListener('mouseleave', hideTip); }
+        acc0 += s[k]; }); }));
+    const lg = h('div', { class: 'legend' }, kinds.map(([k, lab, c]) => '<span><i style="background:var(' + c + ')"></i>' + lab + '</span>').join('')); host.appendChild(lg); };
+  draw(); rerender.push(draw);
+})();
+$('#changes').innerHTML = '<thead><tr><th>Change in v2</th><th class="l">Why</th></tr></thead><tbody>' + [
+  ['Predictions and simulated events limited to what a process can do with what it holds', 'v1 sampled impossible events, such as releasing a resource the process did not hold'],
+  ['Futures follow the live scheduler; queued requests stay queued; risk counts only cycles through the requester', 'v1’s risk was biased towards danger, so it queued about a third of requests'],
+  ['Near-random processes recognised before the drift check; CUSUM drift test after every event', 'v1 sent 56% of bursty requests to a fallback that granted them unchecked'],
+  ['Fallback = Banker’s safety check with learned claims', 'Unpredictable processes are checked instead of granted blindly'],
+  ['Stall handler re-scores queued requests on the current state', 'v1 used stale scores (180 forced grants per run on bursty workloads)'],
+  ['Starvation guard (400-event wait or 900 events without finishing a life)', 'Some processes never finished a life under v1'],
+  ['Victim = cycle member rolled back least often; partial rollback', 'One process could be aborted 150 times in a row, losing all its work each time'],
+  ['Behaviour model with episode-peak and episode-count context tables', 'Tells “another level or cycle” from “exit”'],
+  ['Simulation stops once the decision is certain and skips settled futures', 'Faster decisions with exactly the same answer']]
+  .map(([a, b]) => '<tr><td class="l" style="white-space:normal">' + a + '</td><td class="l" style="white-space:normal;color:var(--ink-2)">' + b + '</td></tr>').join('') + '</tbody>';
+
+// ---------------------------------------------------------------- main results
+let metricK = 'throughput', famK = 'mixed';
+function mainChart() {
+  groupedBars($('#main-chart'), FAMS, POL, (s, c) => mm(s, c, metricK), (s, c) => se(s, c, metricK),
+    { color: col, name: s => NAME[s], catLabel: c => FAM[c].replace(' / ', '/\n').replace('Gradually ', 'Gradually\n').replace('Behaviour ', 'Behaviour\n'),
+      catName: c => FAM[c], fmt: v => metricK === 'latency_ms' ? f3(v) : f1(v), label: METRIC[metricK].label, height: 320 });
+  $('#main-cap').innerHTML = '<b>' + METRIC[metricK].label + '</b>, ' + (METRIC[metricK].hib ? 'higher is better' : 'lower is better') + '. Mean over ' + D.main_seeds + ' seeds per workload; error bars show the standard error. Hover a bar for its value.';
+}
+chips('#metric-chips', Object.entries(METRIC).map(([k, v]) => [k, v.short]), metricK, k => { metricK = k; mainChart(); });
+legend('#main-legend', POL); mainChart(); rerender.push(() => { mainChart(); legend('#main-legend', POL); });
+
+function sortable(table, rows, cols, init) {
+  let key = init.key, dir = init.dir;
+  const render = () => { const sorted = rows.slice().sort((a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * dir);
+    table.innerHTML = '<thead><tr>' + cols.map(c => '<th class="' + (c.sort === false ? '' : 'sort ') + (c.l ? 'l' : '') + '" data-k="' + c.k + '">' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
+      sorted.map(r => '<tr class="' + (r.me ? 'me' : '') + '">' + cols.map(c => '<td class="' + (c.l ? 'l ' : '') + (c.cls ? c.cls(r) : '') + '">' + c.f(r) + '</td>').join('') + '</tr>').join('') + '</tbody>';
+    table.querySelectorAll('th.sort').forEach(th => th.addEventListener('click', () => { const k = th.dataset.k; if (k === key) dir = -dir; else { key = k; dir = -1; } render(); })); };
+  render();
+}
+function mainTable() {
+  const rows = POL.map(p => { const r = { name: NAME[p], p, me: p === 'sage' }; Object.keys(METRIC).forEach(k => r[k] = mm(p, famK, k)); r.thr_se = se(p, famK, 'throughput'); return r; });
+  sortable($('#main-table'), rows, [
+    { k: 'name', t: 'Method', l: true, f: r => '<span class="sw" style="background:' + col(r.p) + '"></span>' + r.name },
+    { k: 'throughput', t: 'Throughput', f: r => f1(r.throughput) + ' <span class="muted">± ' + f1(r.thr_se) + '</span>' },
+    { k: 'turnaround', t: 'Turnaround', f: r => f1(r.turnaround) },
+    { k: 'deadlock_rate', t: 'Deadlocks', f: r => f1(r.deadlock_rate) },
+    { k: 'rollback_rate', t: 'Rollbacks', f: r => f1(r.rollback_rate) },
+    { k: 'wasted_rate', t: 'Wasted work', f: r => f1(r.wasted_rate) },
+    { k: 'queue_rate', t: 'Queued %', f: r => f1(r.queue_rate) },
+    { k: 'starved', t: 'Starved', f: r => f2(r.starved) },
+    { k: 'latency_ms', t: 'Latency ms', f: r => f3(r.latency_ms) }], { key: 'throughput', dir: -1 });
+}
+chips('#fam-chips', FAMS.map(f => [f, FAM[f]]), famK, k => { famK = k; mainTable(); }); mainTable(); rerender.push(mainTable);
+
+(function ranking() {
+  const rank = {}; FAMS.forEach(f => { rank[f] = POL.slice().sort((a, b) => mm(b, f, 'throughput') - mm(a, f, 'throughput')); });
+  const tr = {}; FAMS.forEach(f => { tr[f] = POL.slice().sort((a, b) => mm(a, f, 'turnaround') - mm(b, f, 'turnaround')); });
+  const avg = p => FAMS.reduce((s, f) => s + rank[f].indexOf(p) + 1, 0) / FAMS.length;
+  const avgT = p => FAMS.reduce((s, f) => s + tr[f].indexOf(p) + 1, 0) / FAMS.length;
+  const order = POL.slice().sort((a, b) => avg(a) - avg(b));
+  $('#rank-table').innerHTML = '<thead><tr><th>Method</th>' + FAMS.map(f => '<th>' + FAM[f].replace(' / ', '<br>').replace('Gradually ', 'Gradually<br>').replace('Behaviour ', 'Behaviour<br>') + '</th>').join('') + '<th>Avg rank<br>throughput</th><th>Avg rank<br>turnaround</th></tr></thead><tbody>' +
+    order.map(p => '<tr class="' + (p === 'sage' ? 'me' : '') + '"><td><span class="sw" style="background:' + col(p) + '"></span>' + NAME[p] + '</td>' + FAMS.map(f => '<td>' + (rank[f].indexOf(p) + 1) + '</td>').join('') + '<td>' + avg(p).toFixed(1) + '</td><td>' + avgT(p).toFixed(1) + '</td></tr>').join('') + '</tbody>';
+  const nodecl = POL.filter(p => p !== 'bankers');
+  const topNo = FAMS.filter(f => nodecl.every(p => mm('sage', f, 'throughput') >= mm(p, f, 'throughput')));
+  const topAll = FAMS.filter(f => POL.every(p => mm('sage', f, 'throughput') >= mm(p, f, 'throughput')));
+  const topT = FAMS.filter(f => POL.every(p => mm('sage', f, 'turnaround') <= mm(p, f, 'turnaround')));
+  const fl = fs => fs.map(f => FAM[f].toLowerCase()).join(', ') || 'none';
+  $('#results-intro').innerHTML = 'Eight methods, five workloads and ' + D.main_seeds + ' seeds per workload: ' + (D.main_seeds * FAMS.length * POL.length).toLocaleString() + ' runs at the default size of 6 processes and 8 resources. Throughput (completed process lives per 1,000 events) measures useful work; turnaround measures how long each process takes, waiting included; rollbacks measure the hidden cost of methods that avoid deadlocks by undoing work.';
+  const lost = FAMS.filter(f => !topAll.includes(f)).map(f => { const b = rank[f][0];
+    return FAM[f].toLowerCase() + ': ' + NAME[b] + ' ' + f1(mm(b, f, 'throughput')) + ' against ' + f1(mm('sage', f, 'throughput')) + ' (standard error ' + f1(se('sage', f, 'throughput')) + ')'; });
+  const lostT = FAMS.filter(f => !topT.includes(f)).map(f => FAM[f].toLowerCase() + ' (' + NAME[tr[f][0]] + ' ' + f1(mm(tr[f][0], f, 'turnaround')) + ' against ' + f1(mm('sage', f, 'turnaround')) + ')');
+  $('#results-reading').innerHTML = '<p><b>Reading the results.</b> SAGE v2 completes the most work of all eight methods in ' + topAll.length + ' of ' + FAMS.length + ' workloads (' + fl(topAll) + '), and the most among methods that need no declared demands in ' + topNo.length + ' of ' + FAMS.length + '. It has the shortest turnaround of all methods in ' + topT.length + ' of ' + FAMS.length + ' (' + fl(topT) + ').</p>' +
+    (lost.length ? '<p><b>Where another method is ahead on throughput</b>, it is by a fraction of a standard error: ' + lost.join('; ') + '. On the bursty workload every process really does use every resource, so the declared maxima add nothing and the three avoidance methods are level.</p>' : '') +
+    (lostT.length ? '<p><b>Turnaround</b> is averaged over completed lives, so a method that starves processes leaves its slowest lives out of the average. Where SAGE v2 is not the fastest: ' + lostT.join('; ') + '. SAGE v1’s short turnaround on the mixed workload comes with ' + f2(mm('sage_v1', 'mixed', 'starved')) + ' starved slots per run, against ' + f2(mm('sage', 'mixed', 'starved')) + ' for v2.</p>' : '') +
+    '<p>The prevention schemes never deadlock but roll processes back on every conflict (Wait-Die ' + f1(Math.min(...FAMS.map(f => mm('wait_die', f, 'rollback_rate')))) + ' to ' + f1(Math.max(...FAMS.map(f => mm('wait_die', f, 'rollback_rate')))) + ' rollbacks per 1,000 events), which costs throughput. Detection methods lose the work of every deadlock victim. Banker’s Algorithm with true maxima is the strongest classic method, but it needs information real systems rarely have; without it, it must hold back ' + f1(Math.min(...FAMS.map(f => mm('bankers_nodecl', f, 'queue_rate')))) + '–' + f1(Math.max(...FAMS.map(f => mm('bankers_nodecl', f, 'queue_rate')))) + '% of requests, which shows up as longer turnaround.</p>';
+})();
+
+// ---------------------------------------------------------------- sizes
+const SIZES = ['small (4 x 6)', 'default (6 x 8)', 'large (10 x 12)', 'high contention (8 x 6)'];
+const szv = (p, s, k) => { const fams = ['fixed', 'bursty', 'escalating', 'mixed']; const v = fams.map(f => D.sizes[p] && D.sizes[p][s] && D.sizes[p][s][f] ? D.sizes[p][s][f][k] : NaN); return v.reduce((a, b) => a + b, 0) / v.length; };
+let sizeK = 'throughput';
+function sizeChart() {
+  lineChart($('#size-chart'), SIZES, POL, (p, s) => szv(p, s, sizeK), { color: col, name: p => NAME[p], xLabel: s => s.replace(' (', '\n('), xName: s => s,
+    fmt: v => f1(v), height: 300, label: METRIC[sizeK].label, title: METRIC[sizeK].label });
+  const rows = POL.map(p => { const r = { name: NAME[p], p, me: p === 'sage' }; SIZES.forEach((s, i) => r['s' + i] = szv(p, s, sizeK)); return r; });
+  sortable($('#size-table'), rows, [{ k: 'name', t: 'Method · ' + METRIC[sizeK].short, l: true, f: r => '<span class="sw" style="background:' + col(r.p) + '"></span>' + r.name }]
+    .concat(SIZES.map((s, i) => ({ k: 's' + i, t: s, f: r => f1(r['s' + i]) }))), { key: 's1', dir: METRIC[sizeK].hib ? -1 : 1 });
+}
+chips('#size-chips', ['throughput', 'turnaround', 'deadlock_rate', 'rollback_rate', 'queue_rate'].map(k => [k, METRIC[k].short]), sizeK, k => { sizeK = k; sizeChart(); });
+legend('#size-legend', POL); sizeChart(); rerender.push(() => { sizeChart(); legend('#size-legend', POL); });
+(function sizeReading() {
+  const top = SIZES.filter(s => POL.every(p => szv('sage', s, 'throughput') >= szv(p, s, 'throughput')));
+  const miss = SIZES.filter(s => !top.includes(s)).map(s => { const b = POL.slice().sort((x, y) => szv(y, s, 'throughput') - szv(x, s, 'throughput'))[0];
+    return 'at ' + s + ', ' + NAME[b] + ' is ' + f1(szv(b, s, 'throughput') - szv('sage', s, 'throughput')) + ' ahead (' + f1(szv(b, s, 'throughput')) + ' against ' + f1(szv('sage', s, 'throughput')) + '; within noise, as with 20 seeds the per-workload standard errors there reach about 6), but with ' + f1(szv(b, s, 'deadlock_rate')) + ' deadlocks per 1,000 events against ' + f1(szv('sage', s, 'deadlock_rate')) + ' and ' + f2(szv(b, s, 'starved')) + ' starved slots per run against ' + f2(szv('sage', s, 'starved')); });
+  const bl = D.sizes.sage['large (10 x 12)'].bursty.deadlock_rate, bs = D.sizes.sage['small (4 x 6)'].bursty.deadlock_rate;
+  $('#size-reading').innerHTML = '<p><b>Reading the sizes.</b> SAGE v2 has the highest throughput at ' + top.length + ' of ' + SIZES.length + ' sizes' + (miss.length ? '; ' + miss.join('; ') : '') + '. It gains most under high contention, where detection methods deadlock constantly and Banker’s without declarations must serialise.</p>' +
+    '<p>One weakness shows here: on the bursty workload SAGE v2’s deadlock rate grows from ' + f1(bs) + ' per 1,000 events at 4 x 6 to ' + f1(bl) + ' at 10 x 12, while Banker’s Algorithm with true maxima stays at zero. Closing that gap for large systems of near-random processes is the main open problem.</p>';
+})();
+
+// ---------------------------------------------------------------- v1 vs v2 seed sets
+(function sets() {
+  const ks = [['deadlock_rate', 'Deadlocks', false], ['queue_rate', 'Queued %', false], ['throughput', 'Throughput', true], ['starved', 'Starved', false]];
+  let html = '<thead><tr><th>Seeds</th><th class="l">Workload</th>' + ks.map(k => '<th>' + k[1] + ' v1 → v2</th>').join('') + '</tr></thead><tbody>';
+  Object.entries(D.seedsets).forEach(([lab, s]) => ['fixed', 'bursty', 'escalating', 'mixed'].forEach((f, i) => {
+    html += '<tr><td>' + (i ? '' : lab) + '</td><td class="l">' + FAM[f] + '</td>' + ks.map(([k, , hib]) => { const a = s.v1[f][k], b = s.v2[f][k];
+      const c = Math.abs(a - b) < 1e-9 ? 'tie' : ((b > a) === hib ? 'better' : 'worse');
+      return '<td class="' + c + '">' + (k === 'starved' ? f2(a) + ' → ' + f2(b) : f1(a) + ' → ' + f1(b)) + '</td>'; }).join('') + '</tr>'; }));
+  $('#sets-table').innerHTML = html + '</tbody>';
+})();
+(function score() {
+  const S = D.scoreboard || []; const n = k => S.filter(x => x.result === k).length;
+  $('#score-intro').innerHTML = 'The written report counts every v1-against-v2 comparison it makes: <b>' + S.length + '</b> in total. v2 is better in <b class="mono">' + n('better') + '</b>, level in <b class="mono">' + n('tie') + '</b> and behind in <b class="mono">' + n('worse') + '</b>.';
+  let filt = 'notbetter';
+  const draw = () => { const rows = S.filter(x => filt === 'all' || (filt === 'notbetter' ? x.result !== 'better' : x.result === filt));
+    $('#score-table').innerHTML = '<thead><tr><th class="l">Area</th><th class="l">Comparison</th><th>v1</th><th>v2</th><th>Result</th></tr></thead><tbody>' +
+      rows.map(x => '<tr><td class="l">' + x.area + '</td><td class="l">' + x.item + '</td><td>' + (+x.v1).toPrecision(3) + '</td><td>' + (+x.v2).toPrecision(3) + '</td><td class="' + x.result + '">' + x.result + '</td></tr>').join('') + '</tbody>'; };
+  chips('#score-chips', [['notbetter', 'Where v2 is not ahead'], ['better', 'v2 better'], ['all', 'All']], filt, k => { filt = k; draw(); }); draw();
+  $('#score-reading').innerHTML = '<p><b>Why some comparisons are not wins.</b> <i>Ties that cannot be broken:</i> both versions already catch 100% of the warnable deadlocks, see the same deadlocks on the same trace, and predict a fixed-pattern process identically from three lives of history (its number of cycles is random). <i>Differences inside the noise:</i> escalating throughput on seeds 0–19 (92.7 against 93.0, standard error about 5; v2 is ahead on the other two seed sets) and mixed-workload warning precision (65.7% against 66.3%). <i>Deliberate:</i> at τ above 1 v1 grants everything, while v2 still checks unpredictable processes against learned claims, so it queues 6%; this is what keeps it from deadlocking there. The escalating lead time is shorter because v2 warns on fewer, better-founded requests. <i>Cost:</i> seven decision-latency cells, all with short simulations (H ≤ 20) or with predictable processes, where v2’s richer model costs more per simulated step; in the long-horizon cells v2 is up to five times faster.</p>';
+})();
+
+// ---------------------------------------------------------------- warnings, shift, sweep
+(function warn() {
+  const W = D.warnings; const fams = ['fixed', 'bursty', 'escalating', 'mixed'];
+  const cell = (a, b, fmt, hib = true) => { const c = Math.abs(a - b) < 1e-9 ? 'tie' : ((b > a) === hib ? 'better' : 'worse'); return '<td>' + fmt(a) + '</td><td class="' + c + '">' + fmt(b) + '</td>'; };
+  $('#warn-table').innerHTML = '<thead><tr><th class="l">Workload</th><th>Recall v1</th><th>v2</th><th>Warnable recall v1</th><th>v2</th><th>Precision v1</th><th>v2</th><th>F1 v1</th><th>v2</th><th>Median lead v1</th><th>v2</th></tr></thead><tbody>' +
+    fams.map(f => { const a = W[f].v1, b = W[f].v2; return '<tr><td class="l">' + FAM[f] + '</td>' + cell(a.recall, b.recall, f1) + cell(a.recall_w, b.recall_w, f1) + cell(a.precision, b.precision, f1) + cell(a.f1, b.f1, f1) + cell(a.lead_median_common, b.lead_median_common, x => (+x).toFixed(0)) + '</tr>'; }).join('') + '</tbody>';
+  const S = D.shift; const pr = [['bankers', "Banker's (true maxima)"], ['reactive', 'Reactive DFS'], ['sage', 'SAGE']];
+  $('#shift-table').innerHTML = '<thead><tr><th class="l">Method</th><th>Version</th><th>Deadlocks (run)</th><th>Deadlocks (transition)</th><th>Queued in transition %</th><th>Detected</th><th>Own events to detect</th><th>Ticks to detect</th></tr></thead><tbody>' +
+    pr.map(([p, nm]) => ['v1', 'v2'].map((v, i) => { const e = S[v][p];
+      return '<tr class="' + (p === 'sage' && v === 'v2' ? 'me' : '') + '"><td class="l">' + (i ? '' : nm) + '</td><td>' + v + '</td><td>' + f1(e.deadlocks) + '</td><td>' + f1(e.window_deadlocks) + '</td><td>' + f1(e.window_queue_rate) + '</td><td>' + (e.detected ? e.detected[0] + ' of ' + e.detected[1] : '–') + '</td><td>' + (e.delay_events !== undefined ? f1(e.delay_events) : '–') + '</td><td>' + (e.delay_ticks !== undefined ? (+e.delay_ticks).toFixed(0) : '–') + '</td></tr>'; }).join('')).join('') + '</tbody>';
+  const taus = Object.keys(D.sweep.v2);
+  const sw = () => { ['deadlock_rate', 'queue_rate'].forEach((k, i) => lineChart($(i ? '#sweep-q' : '#sweep-dl'), taus, ['sage_v1', 'sage'], (v, t) => D.sweep[v === 'sage' ? 'v2' : 'v1'][t][k],
+    { color: col, name: v => NAME[v], xName: t => 'τ = ' + t, fmt: f1, width: 380, height: 240, title: i ? 'Requests queued (%)' : 'Deadlocks per 1,000 events', xLabel: t => t })); };
+  sw(); rerender.push(sw);
+})();
+
+// ---------------------------------------------------------------- latency
+(function lat() {
+  const G = D.latency.grid; const Ks = [...new Set(Object.keys(G).map(k => +k.split('|')[0]))].sort((a, b) => a - b), Hs = [...new Set(Object.keys(G).map(k => +k.split('|')[1]))].sort((a, b) => a - b);
+  $('#lat-table').innerHTML = '<thead><tr><th class="l">Futures K \\ steps H</th>' + Hs.map(hh => '<th>H = ' + hh + ' (v1 / v2 ms)</th>').join('') + '</tr></thead><tbody>' +
+    Ks.map(k => '<tr><td class="l">K = ' + k + '</td>' + Hs.map(hh => { const c = G[k + '|' + hh]; const cls = c.v2 < c.v1 ? 'better' : 'worse'; return '<td class="' + cls + '">' + f2(c.v1) + ' / ' + f2(c.v2) + '</td>'; }).join('') + '</tr>').join('') + '</tbody>';
+  const F = D.latency.family; const fams = ['fixed', 'bursty', 'escalating', 'mixed'];
+  const avg = (f, v) => [0, 1, 2].reduce((s, sd) => s + F[f + '|' + sd][v], 0) / 3;
+  $('#latfam-table').innerHTML = '<thead><tr><th class="l">Workload (K = 100, H = 30)</th><th>v1 ms per decision</th><th>v2 ms per decision</th></tr></thead><tbody>' +
+    fams.map(f => { const a = avg(f, 'v1'), b = avg(f, 'v2'); return '<tr><td class="l">' + FAM[f] + '</td><td>' + f2(a) + '</td><td class="' + (b < a ? 'better' : 'worse') + '">' + f2(b) + '</td></tr>'; }).join('') + '</tbody>';
+})();
+
+// ---------------------------------------------------------------- verification
+(function ver() {
+  const v1ids = new Set(D.verify_v1);
+  $('#verify-table').innerHTML = '<thead><tr><th class="l">Check</th><th>v1</th><th>v2</th></tr></thead><tbody>' +
+    D.verify.map(l => { const ok = / PASS/.test(l); const name = l.replace(/\s+(PASS|FAIL).*$/, ''); const id = name.split(' ')[0];
+      const v1 = id === '2a' ? 'pass (could not fail)' : v1ids.has(id) ? 'pass' : 'not present';
+      return '<tr><td class="l" style="white-space:normal">' + name + '</td><td>' + v1 + '</td><td class="' + (ok ? 'better' : 'worse') + '">' + (ok ? 'pass' : 'FAIL') + '</td></tr>'; }).join('') + '</tbody>';
+})();
+
+// ---------------------------------------------------------------- contents highlight
+const links = [...document.querySelectorAll('#toc a')];
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); } }), { rootMargin: '-30% 0px -65% 0px' });
+document.querySelectorAll('main section').forEach(s => io.observe(s));
+})();
+</script>
+
+</body>
+</html>
