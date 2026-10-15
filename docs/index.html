@@ -44,7 +44,9 @@ pre { font: 12.5px/1.55 var(--mono); background: var(--surface-2); border: 1px s
 .small { font-size: 12.5px; }
 .eyebrow { font: 500 11px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
 .label { font: 500 11px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
-.prose { max-width: 70ch; }
+.prose { max-width: 70ch; overflow-wrap: anywhere; }
+.prose code { overflow-wrap: anywhere; word-break: break-word; }
+main, footer { overflow-x: clip; }
 .prose p { color: var(--ink-2); }
 .prose strong { color: var(--ink); }
 .prose ul, .prose ol { margin: 0 0 12px; padding-left: 22px; color: var(--ink-2); }
