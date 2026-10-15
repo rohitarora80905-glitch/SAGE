@@ -34,6 +34,17 @@ except ImportError:                   # the console runs without the SDK; AI fea
 
 PREFERRED = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'meta-llama/llama-4-maverick-17b-128e-instruct',
              'moonshotai/kimi-k2-instruct', 'qwen/qwen3-32b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']
+SMALL = ('allam', 'guard', '1b', '2b', '3b', '7b', '8b', 'tiny', 'mini')      # last resort only
+
+
+def rank_model(model_id):
+    """Preferred models first, then anything large and general, then small or special-purpose ones."""
+    mid = model_id.lower()
+    if model_id in PREFERRED:
+        return (0, PREFERRED.index(model_id))
+    if any(t in mid for t in SMALL):
+        return (2, mid)
+    return (1, mid)
 
 SYSTEM = """You are the resident analyst of the SAGE console. SAGE (Simulated Ahead-of-Time Grant Evaluator) is a
 deadlock-avoidance policy for an operating-systems course (BCSE303P, VIT): instead of declared maximum demands
@@ -124,11 +135,11 @@ class Analyst:
             data = self.client.models.list().data
             ids = sorted(m.id for m in data if getattr(m, 'active', True))
             chat = [i for i in ids if not any(t in i for t in ('whisper', 'tts', 'guard', 'embed', 'orpheus', 'playai', 'compound'))]
-            chat = [p for p in PREFERRED if p in chat] + [i for i in chat if i not in PREFERRED]
+            chat = sorted(chat, key=rank_model)
             self.models = chat
             self.model_info = {m.id: getattr(m, 'context_window', None) for m in data if m.id in chat}
             if self.model not in chat:
-                self.model = next((p for p in PREFERRED if p in chat), chat[0] if chat else None)
+                self.model = chat[0] if chat else None
             self.status = 'ok' if self.model else 'error'
             self.error = None if self.model else 'no chat model available to this key'
         except groq.AuthenticationError as e:

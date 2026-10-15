@@ -191,13 +191,6 @@
   window.addEventListener('hashchange', () => show(location.hash.slice(1)));
   $('menuBtn').addEventListener('click', () => $('sidebar').classList.toggle('open'));
 
-  function applyTheme(t) {
-    const root = document.documentElement; root.classList.add('theming');
-    root.setAttribute('data-theme', t); try { localStorage.setItem('sage-theme', t); } catch (e) { }
-    $('themeToggle').textContent = t === 'dark' ? 'Light theme' : 'Dark theme';
-    setTimeout(() => C.refresh(), 30); setTimeout(() => root.classList.remove('theming'), 520);
-  }
-  $('themeToggle').addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
 
   function renderStatus() {
     const ai = S.meta.ai, box = $('sideStatus'); box.innerHTML = '';
@@ -421,10 +414,10 @@
     staggerChildren(k);
     const b = p.series, x = b.start.map(v => v + b.width);
     C.lineChart($('simCum'), { x, xTitle: 'event', series: [{ label: 'deadlocks (cumulative)', color: C.color('reactive'), values: b.cum_deadlocks }, { label: 'completed lives (cumulative)', color: C.color('sage'), values: b.cum_completions }], format: v => fmt(v, 0), marks: p.deadlocks.map(d => ({ x: d.t })) });
-    C.groupedBars($('simDecisions'), { categories: x, catLabels: x.map((v, k) => k % Math.ceil(x.length / 8) === 0 ? String(v) : ''), catTitle: 'window end', series: [{ label: 'granted', color: C.color('sage'), values: b.granted }, { label: 'queued', color: C.color('bankers'), values: b.queued }], format: v => fmt(v, 0) });
+    C.groupedBars($('simDecisions'), { categories: x, catLabels: x.map((v, k) => k % Math.ceil(x.length / 8) === 0 ? String(v) : ''), catTitle: 'window end', series: [{ label: 'granted', color: C.color('sage'), values: b.granted }, { label: 'queued', color: C.css('--amber'), values: b.queued }], format: v => fmt(v, 0) });
     C.lineChart($('simRisk'), { x, xTitle: 'event', series: [{ label: 'mean risk of learned-path decisions', color: C.color('sage'), values: b.risk_mean }], yMin: 0, yMax: 1, format: v => fmt(v, 2), refY: { value: cfg.tau, label: 'τ = ' + cfg.tau }, area: true });
-    C.lineChart($('simWaiting'), { x, xTitle: 'event', series: [{ label: 'processes waiting (mean per window)', color: C.color('wait_die'), values: b.waiting_mean }], yMin: 0, format: v => fmt(v, 1), area: true });
-    C.barList($('simPaths'), { items: p.paths.map(q => ({ label: q.label, value: q.grant + q.wait, sub: q.grant + ' granted · ' + q.wait + ' queued', color: C.color(q.path === 'learned' ? 'sage' : q.path === 'drain' ? 'bankers' : 'wait_die') })) });
+    C.lineChart($('simWaiting'), { x, xTitle: 'event', series: [{ label: 'processes waiting (mean per window)', color: C.css('--amber'), values: b.waiting_mean }], yMin: 0, format: v => fmt(v, 1), area: true });
+    C.barList($('simPaths'), { items: p.paths.map(q => ({ label: q.label, value: q.grant + q.wait, sub: q.grant + ' granted · ' + q.wait + ' queued', color: q.path === 'learned' ? C.color('sage') : q.path === 'drain' ? C.css('--amber') : C.color('bankers') })) });
     if (p.risk_hist.n) C.histogram($('simRiskHist'), { edges: p.risk_hist.edges, counts: p.risk_hist.counts, color: C.color('sage'), label: 'decisions', xLabel: 'risk', refX: cfg.tau, refLabel: 'τ' });
     else $('simRiskHist').innerHTML = '<div class="no-data">No rollout decisions (fallback or baseline policy)</div>';
     const dl = $('simDeadlocks'); dl.innerHTML = '';
@@ -466,7 +459,7 @@
     const page = items.slice(S.decPage * per, (S.decPage + 1) * per);
     const box = $('simDecisionsTable'); box.innerHTML = '';
     const t = table(['Event', 'Process', 'Resource', 'Decision', 'Risk', 'Path', { label: 'Latency ms', num: true }, ''], page.map(d => [d.t, procName(d.i), resName(d.r), badge(d.d === 'wait' ? 'queued' : d.d === 'fallback' ? 'granted (fallback)' : 'granted', d.d === 'wait' ? 'warn' : 'good'),
-      d.risk === null ? h('span', { class: 'muted' }, '–') : h('span', {}, h('span', { class: 'bar', style: 'width:' + Math.round(60 * d.risk) + 'px;background:' + (d.risk >= p.config.tau ? 'var(--bad)' : 'var(--navy-2)') }), fmt(d.risk, 2)),
+      d.risk === null ? h('span', { class: 'muted' }, '–') : h('span', {}, h('span', { class: 'bar', style: 'width:' + Math.round(60 * d.risk) + 'px;background:' + (d.risk >= p.config.tau ? 'var(--bad)' : 'var(--accent)') }), fmt(d.risk, 2)),
       badge(PATH_LABEL[d.path] || d.path, PATH_CLASS[d.path] || 'plain'), fmt(d.ms, d.ms < 0.1 ? 4 : 2), d.reeval ? h('span', { class: 'muted small' }, 're-evaluation') : '']));
     [...t.querySelectorAll('tr')].slice(1).forEach((tr, k) => { tr.classList.add('clickable'); tr.addEventListener('click', () => explainDecision(page[k])); });
     box.appendChild(t);
@@ -745,7 +738,7 @@
       $('swpTitle').textContent = FAM_LABEL[res.family] + ' workload, ' + res.seeds.length + ' seeds';
       $('swpSub').textContent = 'SAGE with the ' + (res.config.model === 'lstm' ? 'LSTM' : 'Markov') + ' engine; every other parameter at its default';
       C.lineChart($('swpDeadlock'), { x: taus2, xEven: true, xTitle: 'τ', xFormat: v => String(v), series: [{ label: 'deadlocks per 1,000 events', color: C.color('reactive'), values: taus2.map(t => get(t, 'deadlock_rate')), markers: true }], format: v => fmt(v, 2) });
-      C.lineChart($('swpQueue'), { x: taus2, xEven: true, xTitle: 'τ', xFormat: v => String(v), series: [{ label: 'requests queued (%)', color: C.color('bankers'), values: taus2.map(t => get(t, 'queue_rate')), markers: true }, { label: 'throughput (lives / 1,000 events)', color: C.color('sage'), values: taus2.map(t => get(t, 'throughput')), markers: true }], format: v => fmt(v, 1) });
+      C.lineChart($('swpQueue'), { x: taus2, xEven: true, xTitle: 'τ', xFormat: v => String(v), series: [{ label: 'requests queued (%)', color: C.css('--amber'), values: taus2.map(t => get(t, 'queue_rate')), markers: true }, { label: 'throughput (lives / 1,000 events)', color: C.color('sage'), values: taus2.map(t => get(t, 'throughput')), markers: true }], format: v => fmt(v, 1) });
       $('swpQueue').closest('figure').querySelector('.card-title').textContent = 'Queued requests and throughput against τ';
       $('swpQueue').closest('figure').querySelector('.card-sub').textContent = 'Both in their own units (percent and lives per 1,000 events) on a shared numeric axis';
       const t = $('swpTable'); t.innerHTML = '';
@@ -829,7 +822,7 @@
     if (A.sweep) {
       const taus = [...new Set(A.sweep.map(r => r.tau))].sort((a, b) => a - b);
       const mean = (tau, m) => { const rs = A.sweep.filter(r => r.tau === tau); return rs.reduce((a, r) => a + r[m], 0) / rs.length; };
-      C.lineChart($('arSweep'), { x: taus, xEven: true, xTitle: 'τ', xFormat: v => String(v), series: [{ label: 'deadlocks per 1,000 events', color: C.color('reactive'), values: taus.map(t => mean(t, 'deadlock_rate')), markers: true }, { label: 'requests queued (%)', color: C.color('bankers'), values: taus.map(t => mean(t, 'queue_rate')), markers: true }], format: v => fmt(v, 1) });
+      C.lineChart($('arSweep'), { x: taus, xEven: true, xTitle: 'τ', xFormat: v => String(v), series: [{ label: 'deadlocks per 1,000 events', color: C.color('reactive'), values: taus.map(t => mean(t, 'deadlock_rate')), markers: true }, { label: 'requests queued (%)', color: C.css('--amber'), values: taus.map(t => mean(t, 'queue_rate')), markers: true }], format: v => fmt(v, 1) });
     }
     if (A.shift_series) {
       const bins = [...new Set(A.shift_series.map(r => r.bin))].sort((a, b) => a - b);
@@ -838,7 +831,7 @@
     }
     if (A.latency) {
       const rows = A.latency.filter(r => r.H > 0), Hs = [...new Set(rows.map(r => r.H))].sort((a, b) => a - b), Ks = [...new Set(rows.map(r => r.K))].sort((a, b) => a - b);
-      C.lineChart($('arLatency'), { x: Ks, xTitle: 'K', xLog: true, log: true, xFormat: v => String(v), series: Hs.map((H, k) => ({ label: 'H = ' + H, color: [C.color('sage'), C.color('bankers'), C.color('reactive'), C.color('wait_die')][k % 4], values: Ks.map(K => { const r = rows.find(x => x.H === H && x.K === K); return r ? r.latency_ms : null; }), markers: true })), format: v => fmt(v, 2) });
+      C.lineChart($('arLatency'), { x: Ks, xTitle: 'K', xLog: true, log: true, xFormat: v => String(v), series: Hs.map((H, k) => ({ label: 'H = ' + H, color: [C.color('sage'), C.color('bankers'), C.color('reactive'), C.color('sage_lstm')][k % 4], values: Ks.map(K => { const r = rows.find(x => x.H === H && x.K === K); return r ? r.latency_ms : null; }), markers: true })), format: v => fmt(v, 2) });
     }
     const st = $('arShiftTable'); st.innerHTML = '';
     if (A.shift) {
@@ -1014,7 +1007,6 @@ python -m server                      # this console
 
   // ---------------------------------------------------------------- boot
   async function boot() {
-    try { const t = localStorage.getItem('sage-theme'); if (t) applyTheme(t); else $('themeToggle').textContent = matchMedia('(prefers-color-scheme: dark)').matches ? 'Light theme' : 'Dark theme'; } catch (e) { }
     try { S.meta = await api.get('/api/meta'); } catch (e) { document.body.innerHTML = '<p style="padding:40px;font-family:sans-serif">The server did not answer: ' + esc(e.message) + '</p>'; return; }
     renderStatus();
     $('aiBtn').addEventListener('click', openAiSettings);

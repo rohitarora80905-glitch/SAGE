@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SAGE Console</title>
 <meta name="description" content="Simulated Ahead-of-Time Grant Evaluator: deadlock avoidance that learns what processes will do next.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0A0A0B">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314305A'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='700' fill='%23C9A85C'%3ES%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230A0A0B'/%3E%3Crect x='1.5' y='1.5' width='29' height='29' rx='3' fill='none' stroke='%23F0792D' stroke-width='1.5'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='700' fill='%23F0792D'%3ES%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 <div class="shell">
@@ -32,7 +34,6 @@
     <div class="sidebar-foot">
       <div class="pill-stack" id="sideStatus"></div>
       <div class="side-actions">
-        <button class="btn btn-ghost btn-sm" id="themeToggle" type="button" title="Switch theme">Dark theme</button>
         <a class="btn btn-ghost btn-sm" id="reportLink" href="/report" target="_blank" rel="noopener" hidden>Report</a>
       </div>
       <p class="side-credit">BCSE303P · Operating Systems Lab · VIT</p>

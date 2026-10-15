@@ -9,18 +9,24 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Liberation Sans', 'Arial', 'DejaVu Sans']   # first one installed
 plt.rcParams['font.size'] = 8.5
-plt.rcParams['axes.edgecolor'] = '#9AA3B2'
-plt.rcParams['axes.labelcolor'] = '#44506A'
-plt.rcParams['xtick.color'] = '#44506A'
-plt.rcParams['ytick.color'] = '#44506A'
+plt.rcParams['axes.edgecolor'] = '#27272C'
+plt.rcParams['axes.labelcolor'] = '#B3B0AA'
+plt.rcParams['axes.titlecolor'] = '#F1EFEA'
+plt.rcParams['xtick.color'] = '#B3B0AA'
+plt.rcParams['ytick.color'] = '#B3B0AA'
+plt.rcParams['text.color'] = '#F1EFEA'
 plt.rcParams['axes.spines.top'] = False
 plt.rcParams['axes.spines.right'] = False
-plt.rcParams['grid.color'] = '#E6E4DE'
+plt.rcParams['grid.color'] = '#27272C'
 plt.rcParams['legend.frameon'] = False
-plt.rcParams['figure.facecolor'] = 'white'
+plt.rcParams['figure.facecolor'] = '#121214'
+plt.rcParams['axes.facecolor'] = '#121214'
+plt.rcParams['savefig.facecolor'] = '#121214'
+plt.rcParams['axes.prop_cycle'] = plt.cycler(color=['#E0702A', '#5E92CF', '#B5303F', '#9A7BD0', '#2E9C8A', '#B08A1E'])
 POLICIES = ['bankers', 'reactive', 'sage']
 LABEL = {'bankers': "Banker's Algorithm", 'reactive': 'Reactive DFS', 'sage': 'SAGE (Markov)'}
-COLOUR = {'bankers': '#B8860B', 'reactive': '#9B2335', 'sage': '#2457A0'}   # gold, burgundy, navy (console palette)
+COLOUR = {'bankers': '#5E92CF', 'reactive': '#B5303F', 'sage': '#E0702A'}   # steel, crimson, orange (console palette)
+INK, INK2, RULE, SURFACE = '#F1EFEA', '#B3B0AA', '#27272C', '#121214'
 FAMILIES = ['fixed', 'bursty', 'escalating', 'mixed']
 FAM_LABEL = {'fixed': 'Fixed-pattern', 'bursty': 'Bursty / random', 'escalating': 'Gradually escalating', 'mixed': 'Mixed'}
 
@@ -107,7 +113,7 @@ def shift_timeseries(series_csv, out_png, shift_tick):
     fig, ax = plt.subplots(figsize=(8, 3.4), dpi=200)
     ax.plot(bins, acc, marker='o', ms=3, color=COLOUR['sage'], label='next-event accuracy of the shifted processes (%)')
     ax.plot(bins, fb, marker='s', ms=3, color=COLOUR['reactive'], label='share of their decisions sent to the fallback (%)')
-    ax.axvline(shift_tick, color='k', ls=':', label='behaviour shift (A\u2192B\u2192C to A\u2192D\u2192E)')
+    ax.axvline(shift_tick, color='#B3B0AA', ls=':', label='behaviour shift (A\u2192B\u2192C to A\u2192D\u2192E)')
     ax.set_xlabel('event index (bin start)')
     ax.set_ylabel('%')
     ax.set_ylim(-3, 103)
