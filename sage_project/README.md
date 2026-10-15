@@ -1,4 +1,4 @@
-# SAGE – Simulated Ahead-of-Time Grant Evaluator
+# SAGE – Simulated Ahead-of-Time Grant Evaluator (v3)
 
 Trace-driven simulator for deadlock-risk avoidance without declared maximum resource demand,
 with the classical baselines (Banker's Algorithm with and without declarations, reactive DFS
@@ -7,6 +7,16 @@ metrics, an LSTM behaviour-model engine, a web console served by uvicorn and a G
 
 Course: BCSE303P – Operating Systems Lab (Concurrency and Scheduling Track), Vellore
 Institute of Technology. Team: Harvi Bhavin Patel (24BCE2557), Srishti Saluja (24BCE2587).
+
+## Versions
+
+| Version | What it is |
+|---|---|
+| v1 | First decision rule: Markov chain, rollouts, blind fallback for unpredictable processes. Passed its tests; on random workloads it caused more deadlocks than granting everything. |
+| v2 | Context tables, CUSUM drift monitor, learned-claims safety check as the fallback, early-stopping rollouts, starvation guard, partial rollback. The archived benchmark in `results/` is v2. |
+| **v3** (current) | v2's decision rule and defaults unchanged (archived cells re-run with v3 code reproduce exactly), plus the LSTM engine, the web console with replay, the Groq analyst, custom workloads, 33 verification checks and the animated project document. `sagesim.__version__ == '3.0'`. |
+
+The full history, with every v1 against v2 comparison, is in `../SAGE_Interactive_Report.html` (also served by the console at `/report`).
 
 ## Quick start
 

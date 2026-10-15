@@ -43,7 +43,9 @@ LIMITS = dict(n=(2, 16), m=(2, 16), ticks=(50, 6000), K=(5, 500), H=(3, 120), ta
               drift_h=(0.5, 100.0), min_ll=(-10.0, 0.0), aging=(0, 10000), life_aging=(0, 20000), timeout=(5, 2000),
               warmup_lives=(0, 5), lstm_hidden=(8, 128), lstm_train_every=(1, 64), seeds=(1, 30))
 
-app = FastAPI(title='SAGE console', version='2.0')
+from sagesim import __version__                                               # noqa: E402
+
+app = FastAPI(title='SAGE console', version=__version__)
 jobs = JobManager(workers=2)
 analyst = Analyst()
 
@@ -214,6 +216,7 @@ def index():
 
 
 @app.get('/report')
+@app.get('/SAGE_Interactive_Report.html')          # the project document links here by file name
 def report():
     if not os.path.exists(REPORT):
         raise HTTPException(404, 'report not found')
@@ -240,7 +243,7 @@ def meta():
         ai=analyst.public(), report=os.path.exists(REPORT),
         results=[f[:-4] for f in sorted(os.listdir(RESULTS)) if f.endswith('.csv')] if os.path.isdir(RESULTS) else [],
         plots=[f for f in sorted(os.listdir(PLOTS)) if f.endswith('.png')] if os.path.isdir(PLOTS) else [],
-        torch=_torch_info(), python=sys.version.split()[0],
+        torch=_torch_info(), python=sys.version.split()[0], version=__version__,
     )
 
 

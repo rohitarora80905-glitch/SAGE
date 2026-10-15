@@ -200,7 +200,7 @@
     box.appendChild(h('span', { class: 'pill ' + (S.meta.torch.available ? 'ok' : 'warn') }, h('i', { class: 'dot' }), S.meta.torch.available ? 'LSTM engine · torch ' + S.meta.torch.version : 'torch missing: Markov only'));
     if (S.running) box.appendChild(h('span', { class: 'pill ok' }, h('i', { class: 'dot live' }), S.runningLabel || 'Running…'));
     const top = $('topPills'); top.innerHTML = '';
-    top.appendChild(h('span', { class: 'pill' }, 'Python ' + S.meta.python));
+    top.appendChild(h('span', { class: 'pill' }, 'SAGE v' + (S.meta.version || '3.0') + ' · Python ' + S.meta.python));
     top.appendChild(h('span', { class: 'pill' }, S.meta.config.n + ' processes · ' + S.meta.config.m + ' resources · ' + S.meta.config.ticks + ' events (defaults)'));
     if (S.running) top.appendChild(h('span', { class: 'pill ok' }, h('i', { class: 'dot live' }), S.runningLabel || 'Running…'));
     const btn = $('aiBtn'); btn.textContent = ai.status === 'ok' ? 'AI: ' + (ai.model || 'connected') : 'Connect AI'; btn.className = 'btn btn-sm ' + (ai.status === 'ok' ? 'btn-outline' : 'btn-primary');
@@ -948,6 +948,8 @@
   function renderMethod() {
     const c = S.meta.config;
     $('methodDoc').innerHTML = md(`# SAGE: Simulated Ahead-of-Time Grant Evaluator
+
+**Version ${S.meta.version || '3.0'}.** The decision rule, the Markov engine and every default are those of v2, and the archived benchmark is reproduced exactly by this code; v3 adds the LSTM engine, this console, the analyst and custom workloads.
 
 Deadlock avoidance in the textbook sense needs every process to declare its maximum demand in advance; Banker's algorithm then keeps the system in a *safe state*. Real processes rarely declare anything. SAGE removes the declaration: it learns, from each process's own request log, a model of what the process will do next, and before granting a request for a free resource it simulates what would follow.
 
