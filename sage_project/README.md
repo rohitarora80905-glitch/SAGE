@@ -21,6 +21,21 @@ The console needs no GPU. The Groq analyst needs an API key: put `GROQ_API_KEY=g
 console's Analyst section. Without a key every other feature works; the AI panels report that the
 analyst is offline.
 
+## The project document
+
+`docs/index.html` is a standalone, animated document that covers the whole project: the problem,
+the decision workflow, a live replay of the same seeded workload under reactive detection and
+SAGE, one decision's hundred futures, the two behaviour engines and the gate, drift and the
+fallback, the six rivals, the workloads, the full benchmark, the verification suite, the console
+and the analyst's own report. It is served by the console at `/docs/` and can be published with
+GitHub Pages from the `docs/` folder. Rebuild it after changing the code or the archive:
+
+```
+python docs/build_data.py      # runs the simulator, reads the archive, runs the tests (a few minutes)
+python docs/refresh_ai.py      # optional: refresh the analyst section from the running console
+python docs/build.py           # assembles docs/index.html from docs/parts and docs/data.json
+```
+
 ## The console
 
 | Section | What it does |

@@ -35,6 +35,7 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 RESULTS = os.path.join(ROOT, 'results')
 PLOTS = os.path.join(ROOT, 'plots')
 REPORT = os.path.join(REPO, 'SAGE_Interactive_Report.html')
+DOCS = os.path.join(REPO, 'docs')
 FAMILIES = ['fixed', 'bursty', 'escalating', 'mixed', 'shift']
 COMPARE_METRICS = ['deadlock_rate', 'queue_rate', 'throughput', 'latency_ms', 'fallback_rate', 'rollback_rate',
                    'wasted_rate', 'starved', 'min_slot_completed', 'completed', 'deadlocks', 'blocked', 'forced']
@@ -576,3 +577,5 @@ def ai_workload(req: AIWorkloadRequest):
 
 
 app.mount('/static', StaticFiles(directory=STATIC), name='static')
+if os.path.isdir(DOCS):
+    app.mount('/docs', StaticFiles(directory=DOCS, html=True), name='docs')   # the project document (docs/index.html)

@@ -1,0 +1,128 @@
+
+<!-- ================================================================ HERO -->
+<section class="hero" id="hero">
+  <svg class="hero-bg" id="heroBg" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+  <div class="wrap">
+    <p class="eyebrow">BCSE303P · Operating Systems Lab · Vellore Institute of Technology</p>
+    <h1>SA<span>G</span>E</h1>
+    <p class="sub" id="heroSub">Deadlock avoidance that learns what each process will do next.</p>
+    <p class="lede">The Simulated Ahead-of-Time Grant Evaluator removes the one thing Banker's algorithm cannot do without: declared maximum demands. Each process gets a behaviour model fitted from its own request log, every request for a free resource is tried in K simulated futures, and only the risky ones wait. This document covers the problem, the decision workflow, the two behaviour engines, a live replay of a real run, the full benchmark against six textbook strategies, the verification suite, the web console and the AI analyst.</p>
+    <p class="team">Harvi Bhavin Patel (24BCE2557) · Srishti Saluja (24BCE2587) · document generated <span id="heroDate"></span></p>
+    <div class="hero-actions">
+      <a class="btn" href="#replay">Watch a live run</a>
+      <a class="btn btn-outline" href="#workflow">See the workflow</a>
+      <a class="btn btn-outline" href="#results">Read the results</a>
+    </div>
+    <div class="hero-stats" id="heroStats"></div>
+    <div class="scroll-cue"><i></i> scroll</div>
+  </div>
+</section>
+
+<!-- ================================================================ I. PROBLEM -->
+<section class="sec" id="problem"><div class="wrap">
+  <div class="sec-head"><div class="num">I</div><div><h2>The problem: deadlock, and the catch in every textbook answer</h2><p class="lede">Two processes, two resources, two lock orders. Each holds one thing and waits for the other, and neither will ever move. An operating system can prevent this, avoid it, or detect it after the fact. Each option costs something.</p></div></div>
+  <div class="split">
+    <div class="prose reveal">
+      <p>A deadlock needs four conditions at once: resources that cannot be shared, processes that hold some while waiting for more, no pre-emption, and a circular chain of waiting. Break any one and deadlock is impossible. The textbook strategies differ only in which condition they attack, and when.</p>
+      <div class="conds" style="margin:14px 0 18px">
+        <div class="cond"><span class="n">1</span><b>Mutual exclusion</b>A resource serves one process at a time.</div>
+        <div class="cond"><span class="n">2</span><b>Hold and wait</b>A process keeps what it has while asking for more.</div>
+        <div class="cond"><span class="n">3</span><b>No pre-emption</b>Nothing is taken away by force.</div>
+        <div class="cond"><span class="n">4</span><b>Circular wait</b>A cycle in the wait-for graph.</div>
+      </div>
+      <table class="tbl">
+        <tr><th>Strategy</th><th>Mechanism</th><th>What it costs</th></tr>
+        <tr><td>Prevention</td><td>Rule out a condition by design (global lock order, timestamps as in wait-die and wound-wait)</td><td>Rollbacks of innocent processes, rigid rules</td></tr>
+        <tr><td>Avoidance</td><td>Keep the system in a <em>safe state</em> by refusing requests that could lead to a cycle (Banker's algorithm)</td><td><strong>Every process must declare its maximum demand in advance</strong></td></tr>
+        <tr><td>Detection</td><td>Grant everything, find cycles in the wait-for graph, abort a victim</td><td>Wasted work and rollbacks every time it happens</td></tr>
+      </table>
+      <p style="margin-top:14px">Avoidance is the attractive one: no rollbacks, no rigid ordering. Its catch is the declaration. Real programs rarely know, let alone announce, the most they will ever hold. SAGE keeps the avoidance idea and replaces the declaration with something the operating system already has: the history of what each process has asked for.</p>
+    </div>
+    <figure class="fig diagram reveal" style="--i:1">
+      <svg class="dg" id="dgProblem" viewBox="0 0 520 300" role="img" aria-label="Printer and scanner deadlock animation"></svg>
+      <div class="step-cap" id="dgProblemCap"><b>1</b><span>P1 acquires the printer.</span></div>
+      <figcaption>The printer–scanner scenario from the project's first verification case, looping. Orange: held. Amber: waiting. Red: the cycle that reactive detection finds only after it has closed.</figcaption>
+    </figure>
+  </div>
+</div></section>
+
+<!-- ================================================================ II. IDEA -->
+<section class="sec" id="idea"><div class="wrap">
+  <div class="sec-head"><div class="num">II</div><div><h2>The idea: learn, simulate, then decide</h2><p class="lede">Instead of asking a process what it might need, watch what it does, and before granting a request, play its near future forward many times.</p></div></div>
+  <div class="grid-3 stagger" id="ideaCards">
+    <div class="card"><span class="card-title">1 · Learn from the request log</span><span class="card-sub">per process, online, nothing declared</span><p class="muted small" style="margin:0">Every request, release and exit a process emits is counted into a behaviour model of that process alone: a Markov chain over its events with two context tables, and optionally a small LSTM that reads its whole history. Predictions are masked to what the process can actually do with what it holds.</p></div>
+    <div class="card"><span class="card-title">2 · Simulate K futures of H steps</span><span class="card-sub">a sandboxed rollout from the live state</span><p class="muted small" style="margin:0">The allocation state is copied K times with the request granted. In each copy the processes are scheduled uniformly and act by sampling their models for H steps, with exact deadlock detection after every step. The futures run in lock-step as NumPy arrays, so a decision costs a few milliseconds.</p></div>
+    <div class="card"><span class="card-title">3 · Gate on the share that deadlocks</span><span class="card-sub">risk ≥ τ means wait</span><p class="muted small" style="margin:0">The risk of a grant is the fraction of futures in which the requester ends up on a wait-for cycle. At or above the threshold τ the request is queued and re-evaluated at every release. When the model cannot be trusted, a Banker's-style safety check with <em>learned claims</em> decides instead.</p></div>
+  </div>
+  <div class="card reveal" style="margin-top:18px">
+    <div class="split" style="align-items:center">
+      <div class="prose">
+        <span class="card-title">The decision rule, in one line</span>
+        <p style="margin-top:8px">For a request by process <em>i</em> for a free resource <em>r</em>, with a trusted model:</p>
+        <pre style="font-size:14px">risk(i, r) = deadlocked futures / K        queue  if  risk ≥ τ
+                                             grant  otherwise</pre>
+        <p>With the project defaults, K = <span class="mono" id="cfgK"></span> futures, H = <span class="mono" id="cfgH"></span> steps and τ = <span class="mono" id="cfgTau"></span>. The simulation stops early as soon as the comparison with τ is settled: once enough futures have deadlocked to reach τ, or once even every unsettled future deadlocking could not reach it.</p>
+      </div>
+      <div id="ideaMini" class="chart" style="min-height:200px"></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ================================================================ III. WORKFLOW -->
+<section class="sec" id="workflow"><div class="wrap">
+  <div class="sec-head"><div class="num">III</div><div><h2>The live workflow of one request</h2><p class="lede">Every request for a free resource travels the same pipeline. Pick a scenario and follow the token; the stages light up as the policy reaches them.</p></div></div>
+  <div class="scenarios" id="scenarios"></div>
+  <div class="split" style="grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr)">
+    <div class="diagram"><svg class="dg" id="dgPipe" viewBox="0 0 1000 380" role="img" aria-label="Decision pipeline"></svg>
+      <div class="step-cap" id="pipeCap"><b>·</b><span>Choose a scenario above or let it play.</span></div></div>
+    <div class="stage-list" id="stageList"></div>
+  </div>
+  <div class="grid-3" style="margin-top:20px">
+    <div class="card reveal"><span class="card-title">Re-evaluation</span><span class="card-sub">at every release, in arrival order</span><p class="muted small" style="margin:0">A queued request is not forgotten. Each release wakes the queue; every waiter whose resource is free is decided again on the current state. Requests the policy has already queued stay queued inside the sandbox too, so one queued request never counts as a threat to another.</p></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">Starvation guard</span><span class="card-sub">drain, then let the overdue request through</span><p class="muted small" style="margin:0">A request that has waited <span class="mono" id="cfgAging"></span> ticks in one go, or a process that has gone <span class="mono" id="cfgLife"></span> ticks without completing a life, is overdue. While one exists, processes that hold nothing are held back. They create no hold-and-wait, and the holders run on and release until the overdue request becomes safe.</p></div>
+    <div class="card reveal" style="--i:2"><span class="card-title">Stall handler and recovery</span><span class="card-sub">when nothing is runnable</span><p class="muted small" style="margin:0">If every process is waiting and some are queued by policy, the queued request with the lowest re-scored risk is force-granted. A deadlock that still occurs is detected exactly and resolved by aborting the cycle member aborted least often, rolled back only to the last point at which it held nothing.</p></div>
+  </div>
+</div></section>
+
+<!-- ================================================================ IV. LIVE REPLAY -->
+<section class="sec" id="replay"><div class="wrap">
+  <div class="sec-head"><div class="num">IV</div><div><h2>Watch it run: the same workload, two policies</h2><p class="lede" id="replayLede">One seeded mixed workload, identical programs and scheduler draws. Left: reactive detection grants everything and pays in deadlocks. Right: SAGE with the LSTM engine queues the risky requests. The replay is a recording of two real runs, embedded in this page.</p></div></div>
+  <div class="rp-controls">
+    <button class="btn btn-sm" id="rpPlay" type="button">Pause</button>
+    <button class="btn btn-ghost btn-sm" id="rpPrev" type="button">◀</button>
+    <button class="btn btn-ghost btn-sm" id="rpNext" type="button">▶</button>
+    <button class="btn btn-outline btn-sm" id="rpJump" type="button">Next deadlock</button>
+    <select class="select" id="rpSpeed"><option value="420">Slow</option><option value="170" selected>Normal</option><option value="55">Fast</option></select>
+    <span class="pill" id="rpTick"><i class="dot"></i>event 0</span>
+  </div>
+  <div class="rp-scrub"><input type="range" id="rpRange" min="1" max="1" value="1" aria-label="Event"><svg class="rp-marks" id="rpMarks" preserveAspectRatio="none"></svg></div>
+  <div class="twin">
+    <div class="rp-card reactive" id="rpReactive"></div>
+    <div class="rp-card sage" id="rpSage"></div>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card"><span class="card-title">SAGE's decision at this event</span><span class="card-sub">risk gauge against τ, and the outcome of the simulated futures</span><div class="decision" id="rpDecision"></div></div>
+    <div class="card"><span class="card-title">What the two runs produced</span><span class="card-sub">the full-run metrics behind the replay</span><div class="table-wrap" id="rpSummary"></div></div>
+  </div>
+</div></section>
+
+<!-- ================================================================ V. ONE DECISION -->
+<section class="sec" id="futures"><div class="wrap">
+  <div class="sec-head"><div class="num">V</div><div><h2>Inside one decision: a hundred futures</h2><p class="lede" id="futLede">A real decision from the run above, replayed future by future. Each cell is one simulated future; it turns red at the step in which the requester first lands on a wait-for cycle.</p></div></div>
+  <div class="cascade">
+    <div class="card"><div class="kgrid" id="kgrid"></div><p class="small muted" style="margin:10px 0 0" id="kgridCap"></p></div>
+    <div>
+      <div class="grid-2">
+        <div class="kpi"><p class="k-label">Step of the horizon</p><p class="k-value" id="futStep">0<span class="k-unit">of H</span></p></div>
+        <div class="kpi accent"><p class="k-label">Risk so far</p><p class="k-value risk-big" id="futRisk">0.00</p></div>
+      </div>
+      <div class="risk-bar"><i id="futBar"></i><b id="futTau"></b></div>
+      <div class="verdict" id="futVerdict">Simulating…</div>
+      <div class="prose" style="margin-top:14px">
+        <p>The rollout engine keeps all K futures in one set of arrays of shape (K, n, m) and advances them together: blocked processes acquire their resource as soon as it is free, one runnable process per future is drawn uniformly and samples its next event from its model, restricted to what it can do with what it holds, and after every step the futures in which the requester waits are checked for a cycle. A future is settled when it deadlocks or when the requester finishes its life.</p>
+        <p>Because the policy only compares the risk with τ, the simulation stops as soon as that comparison can no longer change. That is why queued decisions often show fewer than K futures examined: the verdict was already certain.</p>
+      </div>
+      <div class="chart" id="riskHist" style="min-height:200px"></div>
+    </div>
+  </div>
+</div></section>

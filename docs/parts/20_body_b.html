@@ -1,0 +1,183 @@
+
+<!-- ================================================================ VI. MODELS -->
+<section class="sec" id="models"><div class="wrap">
+  <div class="sec-head"><div class="num">VI</div><div><h2>Learning what a process will do: two engines</h2><p class="lede">The Markov chain is the workhorse: fast, exact to count, and already near-perfect on patterned processes. The LSTM reads the whole history and is allowed to take over only where it proves better.</p></div></div>
+  <div class="card reveal">
+    <span class="card-title">The Markov chain, counting a real process</span><span class="card-sub" id="mkSub">events of one life of a fixed-pattern process from the replay, streamed into the transition table</span>
+    <div class="mk">
+      <div><div class="stream" id="mkStream"></div><div class="table-wrap"><table id="mkTable"></table></div></div>
+      <div class="prose small" id="mkNote"></div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card reveal prose"><span class="card-title">Context tables</span><span class="card-sub">what a first-order chain confuses</span>
+      <p>After releasing everything, does an escalating process start another level or exit? Does a cyclic process repeat or finish? The last event alone cannot tell. Two extra tables condition on the <strong>episode peak</strong> (most resources held since the process last held nothing) and the <strong>episode count</strong> (holding episodes completed in this life). Each context row is smoothed towards the plain row, and a context table is used only once it has beaten the plain table on both prequential log-likelihood and next-event hits.</p>
+      <p>Predictions are always masked to feasible events: no request of a held resource, no release of one not held. Drift is tracked with a CUSUM of the surprise of every event under the table in use.</p></div>
+    <div class="card reveal prose" style="--i:1"><span class="card-title">The LSTM engine</span><span class="card-sub">a recurrent network per process, trained online and gated</span>
+      <p>Input per event: the event, the holdings after it, the episode peak and the episode count. A <span class="mono" id="cfgHidden"></span>-unit LSTM predicts the next event through a softmax masked to feasible events. Training is prequential: every event is scored before it is learned, then truncated back-propagation through time runs every <span class="mono" id="cfgTrainEvery"></span> events on the latest window and a replayed earlier one, four times as often during the first 256 events.</p>
+      <p><strong>The gate.</strong> The network is used for a process only while it beats the Markov tables on a decayed prequential log-likelihood and on next-event hits, with at least 40 transitions seen. When it is in use, the table the rollout samples from is conditioned on the whole history: the row of the actual state is the network's forecast, every other row is the forecast after one hypothetical step. The rollout engine and the policy run unchanged.</p></div>
+  </div>
+  <div class="card reveal" style="margin-top:18px">
+    <span class="card-title">The gate deciding, process by process</span><span class="card-sub">decayed prequential log-likelihood of the network against the tables over the replayed run; amber bands mark where the network was in use</span>
+    <div class="chips" id="gateChips" style="margin-bottom:10px"></div>
+    <div class="chart" id="gateChart"></div>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card reveal"><span class="card-title">Held-out accuracy of the two engines</span><span class="card-sub">next-event top-1 over five unseen lives after three learned ones, three seeds, six slots each</span><div class="table-wrap" id="accTable"></div><p class="small muted" style="margin:10px 0 0">Bursty processes are random by construction, so no model can predict them well; the network still learns from the holdings and episode structure how bursts end, and that is where the gate hands over. On patterned processes the chain is already near the ceiling and stays in charge.</p></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">In-run model status at the end of the replay</span><span class="card-sub">engine in use per process after the embedded SAGE run</span><div class="table-wrap" id="engineTable"></div></div>
+  </div>
+</div></section>
+
+<!-- ================================================================ VII. TRUST -->
+<section class="sec" id="confidence"><div class="wrap">
+  <div class="sec-head"><div class="num">VII</div><div><h2>Trust, drift and the fallback</h2><p class="lede">A rollout driven by a model that is wrong is worse than no rollout. SAGE checks its confidence first, and when it cannot trust the model it falls back to a safety check that needs no declaration either.</p></div></div>
+  <div class="grid-4 stagger" id="pathCards">
+    <div class="card"><span class="badge info">learned</span><p class="small muted" style="margin:10px 0 0">Enough history, a predictable model, no drift: simulate K futures and gate on τ.</p></div>
+    <div class="card"><span class="badge plain">cold</span><p class="small muted" style="margin:10px 0 0">Fewer than h_min = <span class="mono" id="cfgHmin"></span> observed transitions: too little to simulate.</p></div>
+    <div class="card"><span class="badge warn">uncertain</span><p class="small muted" style="margin:10px 0 0">Fitted average log-likelihood below min_ll = <span class="mono" id="cfgMinll"></span>: the process is close to random, and a rollout from its model would be noise.</p></div>
+    <div class="card"><span class="badge warn">drift</span><p class="small muted" style="margin:10px 0 0">CUSUM of surprise above drift_h = <span class="mono" id="cfgDrift"></span>: a predictable process changed its behaviour. The flag clears after h_min fresh transitions once the CUSUM has fallen back.</p></div>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <figure class="fig card reveal"><span class="card-title">Catching a behaviour change</span><span class="card-sub" id="cusumSub">CUSUM of surprise of one shifted process in the shift workload, event by event</span><div class="chart" id="cusumChart"></div><figcaption id="cusumCap"></figcaption></figure>
+    <figure class="fig card reveal" style="--i:1"><span class="card-title">The shift experiment across 20 seeds</span><span class="card-sub">accuracy of the shifted processes and the share of their decisions sent to the fallback, around the shift</span><div class="chart" id="shiftChart"></div><figcaption>Half the processes switch from A→B→C to A→D→E at event 600, which conflicts with the others. Accuracy dips, the drift monitor flags them within a few of their own events, decisions go to the fallback, and the model recovers once the new pattern is learned.</figcaption></figure>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card reveal bk"><span class="card-title">The fallback: a safety check with learned claims</span><span class="card-sub">Banker's algorithm, with the declared maximum replaced by what the request log has shown</span>
+      <div id="bankers"></div>
+      <p class="small muted" style="margin:10px 0 0">A process's claim is every resource it was ever seen to request plus what it holds; a process holding as many resources as it was ever seen holding at once is taken to release before asking for more. The check then runs the standard safety sequence: can every process finish, one after another, with what is free? With fallback = reactive the request is simply granted instead.</p></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">Recovery: partial rollback</span><span class="card-sub">a deadlock victim is rolled back only as far as needed</span>
+      <div id="rollback" style="margin:6px 0 10px"></div>
+      <p class="small muted" style="margin:0">The victim is the cycle member aborted least often so far, preferring the process whose request closed the cycle. It releases everything and resumes from the last point of its program at which it held nothing, so finished work before that point is kept. Program steps undone are counted as <em>wasted</em>; the benchmark reports them per 1,000 events.</p></div>
+  </div>
+</div></section>
+
+<!-- ================================================================ VIII. RIVALS -->
+<section class="sec" id="baselines"><div class="wrap">
+  <div class="sec-head"><div class="num">VIII</div><div><h2>The six textbook rivals</h2><p class="lede">Every policy runs on the same harness: the same programs, the same scheduler draws, the same exact deadlock detection on every block. Only the decision differs.</p></div></div>
+  <div class="grid-3 stagger" id="rivalCards"></div>
+</div></section>
+
+<!-- ================================================================ IX. WORKLOADS -->
+<section class="sec" id="workloads"><div class="wrap">
+  <div class="sec-head"><div class="num">IX</div><div><h2>Workloads: what the processes do</h2><p class="lede">Synthetic processes with distinct personalities, generated from a seed so that every policy sees exactly the same traces. Each life of a process is a program of requests, releases and an exit; the slot respawns with a fresh program of the same type.</p></div></div>
+  <div class="grid-4 stagger" id="workloadCards"></div>
+  <p class="small muted" style="margin-top:14px">Families assign personalities to the six slots: <strong>fixed</strong>, <strong>bursty</strong>, <strong>escalating</strong>, <strong>mixed</strong> (two of each) and <strong>shift</strong>. The console's workload studio adds <strong>custom</strong> programs, hand-written or designed by the analyst from a description.</p>
+</div></section>
+
+<!-- ================================================================ X. RESULTS -->
+<section class="sec" id="results"><div class="wrap">
+  <div class="sec-head"><div class="num">X</div><div><h2>Results: the benchmark</h2><p class="lede" id="resultsLede">Every number below comes from the CSV archive written by the experiment scripts: the headline benchmark over 20 seeds per family, and the full comparison of seven policies on five families over 100 seeds each.</p></div></div>
+  <div class="hero-stats" id="resKpis" style="margin:0 0 20px"></div>
+  <div class="grid-2">
+    <figure class="fig card reveal"><span class="card-title">Deadlocks per 1,000 events</span><span class="card-sub">headline benchmark, mean ± s.d. over 20 seeds</span><div class="chart" id="hlDeadlock"></div></figure>
+    <figure class="fig card reveal" style="--i:1"><span class="card-title">Completed lives per 1,000 events</span><span class="card-sub">throughput, same runs</span><div class="chart" id="hlThroughput"></div></figure>
+    <figure class="fig card reveal"><span class="card-title">Requests queued by the policy (%)</span><span class="card-sub">the price of avoidance</span><div class="chart" id="hlQueue"></div></figure>
+    <figure class="fig card reveal" style="--i:1"><span class="card-title">Mean decision latency (ms)</span><span class="card-sub">logarithmic axis</span><div class="chart" id="hlLatency"></div></figure>
+  </div>
+  <div class="card reveal" style="margin-top:18px">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div><span class="card-title">Every policy on every workload</span><span class="card-sub" id="caSub"></span></div><select class="select" id="caMetric"></select></div>
+    <div class="chart chart-tall" id="caChart"></div>
+    <div class="table-wrap" id="caTable"></div>
+  </div>
+  <div class="card reveal" style="margin-top:18px"><span class="card-title">Every method, ranked by completed work</span><span class="card-sub">mean over the five families of the full comparison</span><div class="table-wrap" id="rankTable"></div></div>
+  <div class="grid-2" style="margin-top:18px">
+    <figure class="fig card reveal"><span class="card-title">Threshold sweep</span><span class="card-sub">mixed workload: deadlocks and queued requests against τ, five seeds</span><div class="chart" id="sweepChart"></div><figcaption>Lower τ queues more and deadlocks less; τ above 1 disables the gate entirely. The default τ = 0.1 sits where the deadlock curve has flattened and the queue cost is still modest.</figcaption></figure>
+    <figure class="fig card reveal" style="--i:1"><span class="card-title">Decision cost</span><span class="card-sub">mean latency against K for each horizon H, logarithmic axes</span><div class="chart" id="latencyChart"></div><figcaption>Cost grows roughly linearly in K and H. The vectorised rollout keeps the default decision in the millisecond range on one CPU core.</figcaption></figure>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card reveal"><span class="card-title">System sizes and contention</span><span class="card-sub">deadlocks per 1,000 events, 20 seeds per cell, four workload families averaged</span><div class="table-wrap" id="sizesTable"></div></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">Early warning</span><span class="card-sub">shadow mode: SAGE scores every request under reactive detection without intervening; lead time from the first high-risk flag to the deadlock</span><div class="table-wrap" id="leadTable"></div></div>
+  </div>
+</div></section>
+
+<!-- ================================================================ XI. VERIFICATION -->
+<section class="sec" id="verification"><div class="wrap">
+  <div class="sec-head"><div class="num">XI</div><div><h2>Verification: cases with known answers</h2><p class="lede" id="verifyLede">The suite in tests/verify.py checks the pieces against answers that can be derived by hand: the printer–scanner scenario, the textbook safety-check example, determinism, degenerate thresholds, the rollout's accounting rules, the starvation guard, the learned-claims fallback, the context tables, partial rollback, shadow mode, the classic baselines, the LSTM engine, custom workloads and the replay trace.</p></div></div>
+  <div class="vcases" id="vcases"></div>
+</div></section>
+
+<!-- ================================================================ XII. CONSOLE -->
+<section class="sec" id="console"><div class="wrap">
+  <div class="sec-head"><div class="num">XII</div><div><h2>The console</h2><p class="lede">A FastAPI application served by uvicorn, with a front end that has no framework and no build step. Eight sections: overview, simulator, compare, workload studio, benchmark archive, verification, analyst and method.</p></div></div>
+  <div class="gallery" id="gallery"></div>
+  <div class="card reveal" style="margin-top:18px">
+    <span class="card-title">How a run flows through the system</span><span class="card-sub">one request from the browser to a finished replay, and the analyst's side path to Groq</span>
+    <div class="diagram"><svg class="dg arch" id="dgArch" viewBox="0 0 1000 330" role="img" aria-label="Architecture sequence"></svg></div>
+    <div class="grid-3" style="margin-top:14px">
+      <div class="prose small"><strong>Jobs.</strong> A run, comparison, sweep or verification is a background job in a thread pool. The harness reports progress every 25 events through a callback that can also cancel the job; the browser follows it over server-sent events and fetches the result when it is done.</div>
+      <div class="prose small"><strong>Payloads.</strong> The run record becomes JSON: summary metrics, binned time series, decision and deadlock logs, per-process model diagnostics and, with tracing on, one snapshot per event for the replay, including the outcome of every simulated future.</div>
+      <div class="prose small"><strong>Analyst.</strong> The language model never takes part in a decision. It receives the evidence of a run as JSON and writes the report, explains one decision from the state at that event, designs workloads that the server validates, and answers questions with runs in context.</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ================================================================ XIII. ANALYST -->
+<section class="sec" id="analyst"><div class="wrap">
+  <div class="sec-head"><div class="num">XIII</div><div><h2>The analyst, on the record</h2><p class="lede" id="aiLede">What the language model wrote about the run replayed above, verbatim, from the evidence the console gave it.</p></div></div>
+  <div class="split" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr)">
+    <div class="card reveal" style="border-top:2px solid var(--accent)"><span class="card-title">The report</span><span class="card-sub" id="aiReportSub"></span><div class="prose" id="aiReport"></div></div>
+    <div style="display:grid;gap:18px">
+      <div class="card reveal" style="--i:1"><span class="card-title">One decision, explained</span><span class="card-sub" id="aiExplainSub"></span><div class="prose small" id="aiExplain"></div></div>
+      <div class="card reveal" style="--i:2"><span class="card-title">A workload designed from a sentence</span><span class="card-sub" id="aiDesignSub"></span><div id="aiDesign"></div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ================================================================ XIV. REPRODUCE -->
+<section class="sec" id="reproduce"><div class="wrap">
+  <div class="sec-head"><div class="num">XIV</div><div><h2>Reproduce everything</h2><p class="lede">Python 3.10 or newer, NumPy and Matplotlib for the simulator; PyTorch for the LSTM engine; FastAPI, uvicorn and the Groq SDK for the console. No GPU.</p></div></div>
+  <div class="grid-2">
+    <div class="card reveal"><span class="card-title">Commands</span><span class="card-sub">from the sage_project folder</span>
+<pre>pip install -r requirements.txt
+python tests/verify.py              # the verification suite
+python -m experiments.run_all       # headline benchmark, about 20 minutes
+python -m experiments.compare_all   # every policy, 100 seeds
+python -m server                    # the console at http://127.0.0.1:8000
+python ../docs/build_data.py        # regenerate this document's data
+python ../docs/build.py             # rebuild this document</pre>
+      <p class="small muted" style="margin:0">The analyst needs a Groq API key: set GROQ_API_KEY, put it in sage_project/.env, or paste it in the console's Connect AI dialog, which also lists the models available to the key.</p></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">Repository layout</span><span class="card-sub">what lives where</span>
+<div class="tree"><b>sage_project/</b>
+  <b>sagesim/</b>
+    rag.py               <i>live state, event coding, wait-for graph, DFS cycle check</i>
+    behaviour_model.py   <i>Markov chain with context tables and CUSUM drift monitor</i>
+    lstm_model.py        <i>LSTM engine, online training, prequential gate</i>
+    rollout.py           <i>vectorised K×H rollout with exact deadlock check</i>
+    sage.py              <i>the policy: confidence, rollout, gate, fallback, guard</i>
+    bankers.py  reactive.py  baselines.py   <i>the textbook rivals</i>
+    workload.py          <i>personalities, families, custom specs</i>
+    harness.py           <i>event loop, recovery, respawn, trace, progress</i>
+    metrics.py  dashboard.py
+  <b>server/</b>             <i>FastAPI app, jobs, payloads, Groq analyst, static front end</i>
+  <b>experiments/</b>        <i>run_all.py, compare_all.py</i>
+  <b>tests/verify.py</b>     <i>33 cases with known answers</i>
+  <b>results/  plots/</b>    <i>the benchmark archive and figures</i>
+<b>docs/</b>                 <i>this document, its data and build scripts</i></div></div>
+  </div>
+  <div class="card reveal" style="margin-top:18px"><span class="card-title">Configuration defaults</span><span class="card-sub">sagesim/harness.py, CONFIG; every value can be overridden per run</span><div class="table-wrap" id="cfgTable"></div></div>
+  <div class="grid-2" style="margin-top:18px">
+    <div class="card reveal prose"><span class="card-title">Limits and what comes next</span><span class="card-sub">honest boundaries of the study</span>
+      <ul style="margin-top:10px">
+        <li>Single-instance resources only. The rollout's deadlock check is exact for that case; multi-instance resources would need the detection reduction throughout.</li>
+        <li>Synthetic workloads. The personalities are designed, not traced from real systems; the behaviour shift is a single engineered change.</li>
+        <li>The LSTM engine helps measurably only on the random processes. On patterned ones the chain is already at the ceiling, and the gate keeps it there.</li>
+        <li>Decision latency of a few milliseconds is fine for a simulator and for coarse-grained resources; it is far from a kernel lock path.</li>
+        <li>Next: real request traces, multi-instance resources, learned thresholds per process, and a kernel-side prototype of the learned-claims fallback alone.</li>
+      </ul></div>
+    <div class="card reveal" style="--i:1"><span class="card-title">References</span><span class="card-sub">what the methods rest on</span>
+      <ol class="refs" style="margin-top:10px">
+        <li>A. Silberschatz, P. B. Galvin, G. Gagne. <em>Operating System Concepts</em>, 10th ed. Wiley, 2018. Deadlocks: prevention, avoidance (Banker's algorithm), detection and recovery.</li>
+        <li>E. W. Dijkstra. <em>Cooperating sequential processes</em>, 1965. The Banker's algorithm.</li>
+        <li>E. S. Page. <em>Continuous inspection schemes</em>. Biometrika, 1954. The CUSUM change detector used by the drift monitor.</li>
+        <li>S. Hochreiter, J. Schmidhuber. <em>Long short-term memory</em>. Neural Computation, 1997.</li>
+        <li>A. P. Dawid. <em>Present position and potential developments: some personal views. Statistical theory: the prequential approach</em>. J. R. Statist. Soc. A, 1984. Prequential scoring, used by the context-table and engine gates.</li>
+        <li>D. J. Rosenkrantz, R. E. Stearns, P. M. Lewis. <em>System level concurrency control for distributed database systems</em>. ACM TODS, 1978. Wait-die and wound-wait.</li>
+      </ol></div>
+  </div>
+</div></section>
+</main>
+<footer><div class="wrap">SAGE · Simulated Ahead-of-Time Grant Evaluator · BCSE303P Operating Systems Lab, Vellore Institute of Technology · Harvi Bhavin Patel and Srishti Saluja · <a href="https://github.com/rohitarora80905-glitch/SAGE" target="_blank" rel="noopener">github.com/rohitarora80905-glitch/SAGE</a></div></footer>
+<div class="tooltip" id="tooltip"></div>
+<!--SCRIPTS-->
+</body>
+</html>
