@@ -13,6 +13,7 @@ Harvi Bhavin Patel (24BCE2557) · Srishti Saluja (24BCE2587).
 | Path | Contents |
 |---|---|
 | [`docs/index.html`](docs/index.html) | Animated project document: the problem, the live decision workflow, a twin replay of a real run (reactive detection against SAGE), one decision's hundred futures, both behaviour engines, the full benchmark, the verification suite, the console and the analyst's report. |
+| [`SAGE_Project_Document.html`](SAGE_Project_Document.html) | The same document as one self-contained file: fonts and screenshots embedded, no links out, opens offline by double-click. Rebuild with `python docs/make_standalone.py`. |
 | [`SAGE_Interactive_Report.html`](SAGE_Interactive_Report.html) | The complete v1 → v2 → v3 report, with every comparison between versions and against six textbook methods. |
 | [`sage_project/`](sage_project/) | The simulator, the baselines, the LSTM engine, the experiments, the verification suite and the web console. See its [README](sage_project/README.md). |
 
