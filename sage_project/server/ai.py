@@ -21,7 +21,7 @@ try:
     for _p in (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'),
                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')):
         if os.path.exists(_p):
-            load_dotenv(_p, override=False)
+            load_dotenv(_p, override=True)       # a key saved from the console wins over a stale environment variable
 except ImportError:
     pass
 
