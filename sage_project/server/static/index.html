@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAGE Console</title>
+<meta name="description" content="Simulated Ahead-of-Time Grant Evaluator: deadlock avoidance that learns what processes will do next.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314305A'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='700' fill='%23C9A85C'%3ES%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="#overview">
+      <span class="brand-mark">S</span>
+      <span class="brand-text"><span class="brand-name">SAGE</span><span class="brand-sub">Console</span></span>
+    </a>
+    <p class="brand-tag">Simulated Ahead-of-Time Grant Evaluator</p>
+    <nav class="nav" id="nav">
+      <a href="#overview" data-view="overview"><span class="num">I</span><span>Overview</span></a>
+      <a href="#simulator" data-view="simulator"><span class="num">II</span><span>Simulator</span></a>
+      <a href="#compare" data-view="compare"><span class="num">III</span><span>Compare</span></a>
+      <a href="#studio" data-view="studio"><span class="num">IV</span><span>Workload studio</span></a>
+      <a href="#archive" data-view="archive"><span class="num">V</span><span>Benchmark archive</span></a>
+      <a href="#verify" data-view="verify"><span class="num">VI</span><span>Verification</span></a>
+      <a href="#analyst" data-view="analyst"><span class="num">VII</span><span>Analyst</span></a>
+      <a href="#method" data-view="method"><span class="num">VIII</span><span>Method</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="pill-stack" id="sideStatus"></div>
+      <div class="side-actions">
+        <button class="btn btn-ghost btn-sm" id="themeToggle" type="button" title="Switch theme">Dark theme</button>
+        <a class="btn btn-ghost btn-sm" id="reportLink" href="/report" target="_blank" rel="noopener" hidden>Report</a>
+      </div>
+      <p class="side-credit">BCSE303P · Operating Systems Lab · VIT</p>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <header class="topbar">
+      <button class="btn btn-ghost btn-sm menu-btn" id="menuBtn" type="button" aria-label="Menu">Menu</button>
+      <div class="topbar-title">
+        <p class="eyebrow" id="topEyebrow">Section I</p>
+        <h1 id="topTitle">Overview</h1>
+      </div>
+      <div class="topbar-right"><div class="pills" id="topPills"></div><button class="btn btn-primary btn-sm" id="aiBtn" type="button">Connect AI</button></div>
+    </header>
+
+    <!-- ============================================================ I. OVERVIEW -->
+    <section class="view" id="view-overview">
+      <div class="hero">
+        <div class="hero-text">
+          <p class="eyebrow gold">Deadlock avoidance without declared demands</p>
+          <h2 class="display">SAGE learns what each process will do next, simulates the futures of every grant, and queues only the risky ones.</h2>
+          <p class="lede">The console runs the simulator live, compares SAGE with six textbook strategies on the same seeded workloads, lets an LSTM take over the behaviour model where it predicts better, and hands the numbers to a language model that writes the analysis.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#simulator">Run a simulation</a>
+            <a class="btn btn-outline" href="#compare">Compare policies</a>
+            <a class="btn btn-outline" href="#studio">Design a workload with AI</a>
+          </div>
+        </div>
+        <div class="hero-side card" id="heroFacts"></div>
+      </div>
+
+      <div class="kpi-row" id="ovKpis"></div>
+
+      <div class="grid-2">
+        <figure class="card chart-card"><figcaption><span class="card-title">Deadlocks per 1,000 events</span><span class="card-sub">Mean over 20 seeds per workload family, benchmark archive</span></figcaption><div class="chart" id="ovDeadlock"></div></figure>
+        <figure class="card chart-card"><figcaption><span class="card-title">Completed lives per 1,000 events</span><span class="card-sub">Throughput, same runs</span></figcaption><div class="chart" id="ovThroughput"></div></figure>
+        <figure class="card chart-card"><figcaption><span class="card-title">Requests queued by the policy (%)</span><span class="card-sub">Share of free-resource requests refused for now</span></figcaption><div class="chart" id="ovQueue"></div></figure>
+        <figure class="card chart-card"><figcaption><span class="card-title">Mean decision latency (ms)</span><span class="card-sub">Logarithmic axis</span></figcaption><div class="chart" id="ovLatency"></div></figure>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><span class="card-title">Every method, ranked by completed work</span><span class="card-sub" id="ovRankSub">Mean over the five workload families of the full comparison</span></div></div>
+        <div class="table-wrap" id="ovRank"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ II. SIMULATOR -->
+    <section class="view" id="view-simulator" hidden>
+      <div class="sim-layout">
+        <aside class="sim-config card">
+          <div class="card-head"><span class="card-title">Configuration</span><button class="btn btn-ghost btn-sm" id="simReset" type="button">Defaults</button></div>
+          <form id="simForm" class="form" autocomplete="off"></form>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-block" id="simRun" type="button">Run simulation</button>
+            <button class="btn btn-outline btn-block" id="simCancel" type="button" hidden>Cancel</button>
+          </div>
+          <div class="progress" id="simProgress" hidden><div class="progress-bar"><span></span></div><p class="progress-text"></p></div>
+          <div class="recent" id="simRecent"></div>
+        </aside>
+
+        <div class="sim-results" id="simResults">
+          <div class="card sim-live" id="simLive" hidden>
+            <div class="futures" aria-hidden="true"><i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i><i style="--i:8"></i><i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i></div>
+            <div><p class="label">Simulating</p><p class="muted" id="simLiveText" style="margin:0">K futures of H steps for every request of a free resource…</p></div>
+          </div>
+          <div class="empty-state" id="simEmpty">
+            <p class="eyebrow gold">No run yet</p>
+            <h3 class="display">Choose a policy and a workload, then run.</h3>
+            <p class="muted">A run of 1,500 events with SAGE takes a few seconds. Every number, log and the replay below come from that single seeded run, so it can be reproduced exactly.</p>
+          </div>
+          <div id="simBody" hidden>
+            <div class="result-head">
+              <div><p class="eyebrow" id="simRunEyebrow"></p><h2 id="simRunTitle" class="display"></h2><p class="muted" id="simRunSub"></p></div>
+              <div class="result-actions">
+                <button class="btn btn-outline btn-sm" id="simAnalyse" type="button">Analyse with AI</button>
+                <button class="btn btn-ghost btn-sm" id="simDownload" type="button">Download JSON</button>
+              </div>
+            </div>
+            <div class="kpi-row" id="simKpis"></div>
+
+            <div class="grid-2">
+              <figure class="card chart-card"><figcaption><span class="card-title">Deadlocks and completed lives over the run</span><span class="card-sub">Cumulative counts</span></figcaption><div class="chart" id="simCum"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Decisions per window</span><span class="card-sub">Granted and queued requests of free resources</span></figcaption><div class="chart" id="simDecisions"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Mean rollout risk per window</span><span class="card-sub">Learned-path decisions only; the threshold τ is marked</span></figcaption><div class="chart" id="simRisk"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Processes waiting</span><span class="card-sub">Mean number of waiting processes per window</span></figcaption><div class="chart" id="simWaiting"></div></figure>
+            </div>
+
+            <div class="grid-3">
+              <figure class="card chart-card"><figcaption><span class="card-title">Decision paths</span><span class="card-sub">First decisions on each request</span></figcaption><div class="chart" id="simPaths"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Risk scores</span><span class="card-sub">Histogram of the rollout risk</span></figcaption><div class="chart" id="simRiskHist"></div></figure>
+              <div class="card"><div class="card-head"><span class="card-title">Deadlocks</span><span class="card-sub" id="simDlSub"></span></div><div class="table-wrap" id="simDeadlocks"></div></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><div><span class="card-title">Replay</span><span class="card-sub">Step through the run: allocation, wait-for graph, the decision and its simulated futures</span></div>
+                <div class="replay-controls" id="replayControls">
+                  <button class="btn btn-ghost btn-sm" data-act="first" type="button" title="Start">|◀</button>
+                  <button class="btn btn-ghost btn-sm" data-act="prev" type="button" title="Previous (←)">◀</button>
+                  <button class="btn btn-outline btn-sm" data-act="play" type="button" id="replayPlay">Play</button>
+                  <button class="btn btn-ghost btn-sm" data-act="next" type="button" title="Next (→)">▶</button>
+                  <button class="btn btn-ghost btn-sm" data-act="last" type="button" title="End">▶|</button>
+                  <select class="select select-sm" id="replaySpeed"><option value="400">Slow</option><option value="150" selected>Normal</option><option value="40">Fast</option></select>
+                  <select class="select select-sm" id="replayJump"><option value="">Jump to…</option></select>
+                </div>
+              </div>
+              <div class="replay-scrub"><input type="range" id="replayRange" min="0" max="0" value="0"><svg class="replay-marks" id="replayMarks" preserveAspectRatio="none"></svg></div>
+              <div class="replay-grid">
+                <div class="replay-main">
+                  <div class="replay-event" id="replayEvent"></div>
+                  <div class="replay-panels">
+                    <div><p class="label">Allocation</p><div id="replayAlloc" class="alloc"></div></div>
+                    <div><p class="label">Wait-for graph</p><div id="replayGraph" class="wfg"></div></div>
+                  </div>
+                </div>
+                <div class="replay-side">
+                  <div id="replayDecision"></div>
+                  <div id="replayProcs" class="replay-procs"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><div><span class="card-title">Processes and their models</span><span class="card-sub">What each slot ran, how well its model predicted it, which engine the policy trusted</span></div></div>
+              <div class="table-wrap" id="simProcs"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><div><span class="card-title">Decision log</span><span class="card-sub" id="simDecSub"></span></div>
+                <div class="filters">
+                  <select class="select select-sm" id="decFilter"><option value="all">All decisions</option><option value="wait">Queued only</option><option value="learned">Learned path</option><option value="fallback">Fallback paths</option><option value="drain">Starvation guard</option></select>
+                  <select class="select select-sm" id="decProc"><option value="">Every process</option></select>
+                </div>
+              </div>
+              <div class="table-wrap" id="simDecisionsTable"></div>
+              <div class="pager" id="decPager"></div>
+            </div>
+
+            <div class="card ai-card" id="simAiCard" hidden>
+              <div class="card-head"><div><span class="card-title">Analyst's report</span><span class="card-sub" id="simAiSub"></span></div><div class="filters"><input class="input input-sm" id="simAiFocus" placeholder="Ask something specific (optional)"><button class="btn btn-outline btn-sm" id="simAiAgain" type="button">Regenerate</button></div></div>
+              <div class="prose" id="simAiOut"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ III. COMPARE -->
+    <section class="view" id="view-compare" hidden>
+      <div class="sim-layout">
+        <aside class="sim-config card">
+          <div class="card-head"><span class="card-title">Comparison</span></div>
+          <form id="cmpForm" class="form" autocomplete="off"></form>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-block" id="cmpRun" type="button">Run comparison</button>
+            <button class="btn btn-outline btn-block" id="cmpCancel" type="button" hidden>Cancel</button>
+          </div>
+          <div class="progress" id="cmpProgress" hidden><div class="progress-bar"><span></span></div><p class="progress-text"></p></div>
+          <hr class="rule">
+          <div class="card-head"><span class="card-title">Threshold sweep</span></div>
+          <form id="swpForm" class="form" autocomplete="off"></form>
+          <div class="form-actions"><button class="btn btn-outline btn-block" id="swpRun" type="button">Sweep τ</button></div>
+          <div class="progress" id="swpProgress" hidden><div class="progress-bar"><span></span></div><p class="progress-text"></p></div>
+        </aside>
+        <div class="sim-results">
+          <div class="empty-state" id="cmpEmpty">
+            <p class="eyebrow gold">Same workload, same seeds, every policy</p>
+            <h3 class="display">Pick the policies to compare and run them on identical traces.</h3>
+            <p class="muted">Each policy sees exactly the same programs and scheduler draws for a given seed, so differences are due to the policy alone. Add the LSTM engine to compare the two behaviour models inside SAGE.</p>
+          </div>
+          <div id="cmpBody" hidden>
+            <div class="result-head"><div><p class="eyebrow" id="cmpEyebrow"></p><h2 class="display" id="cmpTitle"></h2><p class="muted" id="cmpSub"></p></div>
+              <div class="result-actions"><button class="btn btn-outline btn-sm" id="cmpAnalyse" type="button">Analyse with AI</button></div></div>
+            <div class="grid-2">
+              <figure class="card chart-card"><figcaption><span class="card-title">Deadlocks per 1,000 events</span><span class="card-sub">Mean ± s.d. over seeds</span></figcaption><div class="chart" id="cmpDeadlock"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Completed lives per 1,000 events</span><span class="card-sub">Throughput</span></figcaption><div class="chart" id="cmpThroughput"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Requests queued by the policy (%)</span><span class="card-sub">Avoidance cost</span></figcaption><div class="chart" id="cmpQueue"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Rollbacks per 1,000 events</span><span class="card-sub">Recovery cost: aborted and restarted work</span></figcaption><div class="chart" id="cmpRollback"></div></figure>
+            </div>
+            <div class="card"><div class="card-head"><span class="card-title">All metrics</span><span class="card-sub">Mean ± standard deviation over seeds</span></div><div class="table-wrap" id="cmpTable"></div></div>
+            <div class="card ai-card" id="cmpAiCard" hidden><div class="card-head"><span class="card-title">Analyst's commentary</span><span class="card-sub" id="cmpAiSub"></span></div><div class="prose" id="cmpAiOut"></div></div>
+          </div>
+          <div id="swpBody" hidden>
+            <div class="result-head"><div><p class="eyebrow">Threshold sweep</p><h2 class="display" id="swpTitle"></h2><p class="muted" id="swpSub"></p></div></div>
+            <div class="grid-2">
+              <figure class="card chart-card"><figcaption><span class="card-title">Deadlocks per 1,000 events against τ</span><span class="card-sub">Lower τ queues more and deadlocks less</span></figcaption><div class="chart" id="swpDeadlock"></div></figure>
+              <figure class="card chart-card"><figcaption><span class="card-title">Queue rate (%) and throughput against τ</span><span class="card-sub">Two series, one axis each</span></figcaption><div class="chart" id="swpQueue"></div></figure>
+            </div>
+            <div class="card"><div class="table-wrap" id="swpTable"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ IV. WORKLOAD STUDIO -->
+    <section class="view" id="view-studio" hidden>
+      <div class="studio-layout">
+        <div class="card">
+          <div class="card-head"><div><span class="card-title">Describe the scenario</span><span class="card-sub">The analyst turns a description into process programs; the server validates them</span></div></div>
+          <textarea class="textarea" id="stDesc" rows="5" placeholder="Example: three writers each lock the printer then the scanner; two readers lock the scanner first and then the printer; one background job takes the disk and the tape at random."></textarea>
+          <div class="filters">
+            <label class="field-inline">Processes <input class="input input-sm" id="stN" type="number" min="2" max="12" placeholder="auto"></label>
+            <label class="field-inline">Resources <input class="input input-sm" id="stM" type="number" min="2" max="12" placeholder="auto"></label>
+            <button class="btn btn-primary" id="stDesign" type="button">Design with AI</button>
+          </div>
+          <p class="muted small" id="stDesignStatus"></p>
+          <div class="presets"><p class="label">Or start from a classic</p><div class="chips" id="stPresets"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><span class="card-title">Workload specification</span><span class="card-sub">JSON; edit freely, then validate</span></div><div class="filters"><button class="btn btn-outline btn-sm" id="stValidate" type="button">Validate</button></div></div>
+          <textarea class="textarea mono" id="stSpec" rows="18" spellcheck="false"></textarea>
+          <p class="muted small" id="stSpecStatus"></p>
+        </div>
+        <div class="card studio-preview">
+          <div class="card-head"><div><span class="card-title">Preview</span><span class="card-sub">One sample life per process</span></div>
+            <div class="filters"><select class="select select-sm" id="stPolicy"></select><button class="btn btn-primary btn-sm" id="stRun" type="button">Run in simulator</button><button class="btn btn-outline btn-sm" id="stCompare" type="button">Compare all policies</button></div></div>
+          <div id="stPreview" class="preview-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ V. ARCHIVE -->
+    <section class="view" id="view-archive" hidden>
+      <div class="card"><div class="card-head"><div><span class="card-title">Benchmark archive</span><span class="card-sub" id="arSub">Results written by experiments/run_all.py and experiments/compare_all.py</span></div></div>
+        <div class="table-wrap" id="arConfig"></div></div>
+      <div class="card"><div class="card-head"><div><span class="card-title">Every policy on every workload</span><span class="card-sub" id="arCmpSub"></span></div><div class="filters"><select class="select select-sm" id="arMetric"></select></div></div>
+        <div class="chart chart-tall" id="arCompare"></div><div class="table-wrap" id="arCompareTable"></div></div>
+      <div class="grid-2">
+        <div class="card"><div class="card-head"><div><span class="card-title">System sizes and contention</span><span class="card-sub">20 seeds per cell; deadlocks per 1,000 events</span></div></div><div class="table-wrap" id="arSizes"></div></div>
+        <div class="card"><div class="card-head"><div><span class="card-title">Behaviour model accuracy</span><span class="card-sub">Next-event top-1 accuracy on unseen lives and inside the runs</span></div></div><div class="table-wrap" id="arAccuracy"></div>
+          <div class="card-head"><div><span class="card-title">Early warning</span><span class="card-sub">Shadow mode: lead time from the first high-risk flag to the deadlock</span></div></div><div class="table-wrap" id="arLead"></div></div>
+      </div>
+      <div class="grid-2">
+        <figure class="card chart-card"><figcaption><span class="card-title">Threshold sweep</span><span class="card-sub">Mixed workload: deadlocks and queued requests against τ</span></figcaption><div class="chart" id="arSweep"></div></figure>
+        <figure class="card chart-card"><figcaption><span class="card-title">Behaviour shift</span><span class="card-sub">Accuracy of the shifted processes and their fallback share around the shift</span></figcaption><div class="chart" id="arShift"></div></figure>
+        <figure class="card chart-card"><figcaption><span class="card-title">Decision cost</span><span class="card-sub">Mean latency against K for each horizon H</span></figcaption><div class="chart" id="arLatency"></div></figure>
+        <div class="card"><div class="card-head"><div><span class="card-title">Shift experiment</span><span class="card-sub">Detection delay and the transition window</span></div></div><div class="table-wrap" id="arShiftTable"></div></div>
+      </div>
+      <div class="card"><div class="card-head"><div><span class="card-title">Figures</span><span class="card-sub">Generated by sagesim/dashboard.py</span></div></div><div class="plots" id="arPlots"></div></div>
+    </section>
+
+    <!-- ============================================================ VI. VERIFICATION -->
+    <section class="view" id="view-verify" hidden>
+      <div class="card">
+        <div class="card-head"><div><span class="card-title">Verification suite</span><span class="card-sub">tests/verify.py: cases with known answers, from the printer–scanner scenario to the classic baselines and the LSTM engine</span></div>
+          <div class="filters"><button class="btn btn-primary" id="vfRun" type="button">Run the suite</button></div></div>
+        <div class="progress" id="vfProgress" hidden><div class="progress-bar indeterminate"><span></span></div><p class="progress-text">Running…</p></div>
+        <div id="vfSummary" class="verify-summary"></div>
+        <div class="table-wrap" id="vfCases"></div>
+        <details class="details" id="vfRaw" hidden><summary>Raw output</summary><pre class="pre" id="vfOut"></pre></details>
+      </div>
+    </section>
+
+    <!-- ============================================================ VII. ANALYST -->
+    <section class="view" id="view-analyst" hidden>
+      <div class="analyst-layout">
+        <div class="card chat-card">
+          <div class="card-head"><div><span class="card-title">Conversation</span><span class="card-sub">Ask about the method, a run, a comparison or the tuning of SAGE</span></div>
+            <div class="filters"><select class="select select-sm" id="chatContext" multiple size="1"></select><button class="btn btn-ghost btn-sm" id="chatClear" type="button">Clear</button></div></div>
+          <div class="chat" id="chatLog"></div>
+          <form class="chat-input" id="chatForm"><textarea class="textarea" id="chatText" rows="2" placeholder="Why did SAGE queue so many requests on the bursty workload?"></textarea><button class="btn btn-primary" type="submit" id="chatSend">Send</button></form>
+          <div class="chips" id="chatSuggest"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><span class="card-title">Groq connection</span><span class="card-sub">Paste a key and pick a model here; the key is also read from GROQ_API_KEY or a .env file</span></div></div>
+          <div id="aiPanelHost"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ VIII. METHOD -->
+    <section class="view" id="view-method" hidden>
+      <div class="method">
+        <article class="card prose" id="methodDoc"></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip" hidden></div>
+<div class="toasts" id="toasts"></div>
+<div class="modal" id="modal" hidden><div class="modal-box"><div class="modal-head"><span class="card-title" id="modalTitle"></span><button class="btn btn-ghost btn-sm" id="modalClose" type="button">Close</button></div><div class="prose" id="modalBody"></div></div></div>
+
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

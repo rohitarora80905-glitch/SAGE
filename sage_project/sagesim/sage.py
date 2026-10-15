@@ -37,6 +37,8 @@ class SagePolicy:
         self.shadow = shadow                       # score only, never intervene (lead-time replay)
         self.flagged_at = {}                       # process -> support when drift was flagged
         self.last_risk = {}
+        self.detail = False                        # keep the per-future outcome of each rollout (tracing)
+        self.last_detail = {}
 
     def confidence(self, i):
         """Returns 'learned', 'cold', 'uncertain' or 'drift'.
@@ -79,7 +81,13 @@ class SagePolicy:
             if self.fallback == 'claims':
                 return (GRANT if self.safe_with_claims(state, i, r) else WAIT), None, path
             return FALLBACK, None, path            # the harness applies the reactive rule
-        risk = rollout_risk(state, i, r, self.models, self.K, self.H, self.rng, stop_at=self.tau)
+        if self.detail:
+            risk, dead, first = rollout_risk(state, i, r, self.models, self.K, self.H, self.rng,
+                                             return_detail=True, stop_at=self.tau)
+            steps = np.bincount(first[first >= 0], minlength=self.H).tolist() if dead.any() else [0] * self.H
+            self.last_detail[i] = dict(K=self.K, H=self.H, dead=int(dead.sum()), steps=steps)
+        else:
+            risk = rollout_risk(state, i, r, self.models, self.K, self.H, self.rng, stop_at=self.tau)
         self.last_risk[i] = risk
         return (GRANT if risk < self.tau else WAIT), risk, path
 

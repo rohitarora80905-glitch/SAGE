@@ -64,7 +64,9 @@ class MarkovModel:
         self._fit = None
 
     # -- learning ---------------------------------------------------------
-    def update(self, prev_event, next_event, n_held=None, peak=None, count=None):
+    def update(self, prev_event, next_event, n_held=None, peak=None, count=None, held=None):
+        # `held` (the resources held before the event) is accepted for interface parity with the
+        # LSTM model; the Markov chain does not need it.
         # the surprise of the event under the model *before* it is learned (prequential
         # log-likelihood). It is scored without the held-set mask: an event that was the only
         # feasible one carries no evidence about the behaviour and would dilute the drift window.

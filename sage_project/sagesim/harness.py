@@ -24,6 +24,15 @@ picks one runnable process uniformly at random (seeded) and executes its next op
 If no process is runnable and some requests are queued by policy, the policy's stall
 handler force-grants one of them (counted). All randomness is seeded, so two runs with
 the same seed and configuration produce identical logs.
+
+Behaviour models: `model='markov'` (the first-order chain with context tables) or
+`model='lstm'` (the chain plus a recurrent network gated by prequential score, see
+lstm_model.py). Custom workloads: pass `types` (a list of ProcessType, e.g. from
+workload.types_from_spec) in place of a family name. `progress(tick, ticks)` is called every
+25 ticks (it may raise to cancel the run). With `trace=True` the run also records one
+snapshot per tick (`R['trace']`) for replay: the actor and its event, the decision and its
+risk, the allocation, every process's status and program position, deadlocks and the
+per-future outcome of the rollout.
 """
 from time import perf_counter
 import numpy as np
@@ -38,7 +47,10 @@ from .baselines import BankersNoDeclaration, WaitDiePolicy, WoundWaitPolicy, Tim
 
 CONFIG = dict(n=6, m=8, ticks=1500, K=100, H=30, tau=0.10, h_min=20, w=10, drift_h=8.0, min_ll=-1.0,
               floor=1e-3, shift_tick=600, warmup_lives=1, aging=400, life_aging=900, fallback='claims',
-              recovery='partial', timeout=50)
+              recovery='partial', timeout=50, model='markov', lstm_hidden=48, lstm_train_every=8, lstm_bptt=96)
+
+POLICIES = ['sage', 'bankers', 'bankers_nodecl', 'reactive', 'timeout', 'wait_die', 'wound_wait']
+MODELS = ['markov', 'lstm']
 
 
 def checkpoint(program, upto, m):
@@ -62,6 +74,16 @@ def checkpoint(program, upto, m):
     return best
 
 
+def make_model(cfg, m, seed=0, slot=0):
+    """The behaviour model of one process slot."""
+    if cfg.get('model', 'markov') == 'lstm':
+        from .lstm_model import LSTMModel
+        return LSTMModel(m, window=cfg['w'], floor=cfg['floor'], hidden=int(cfg.get('lstm_hidden', 48)),
+                         train_every=int(cfg.get('lstm_train_every', 8)), bptt=int(cfg.get('lstm_bptt', 96)),
+                         seed=int(seed) * 1009 + int(slot))
+    return MarkovModel(m, window=cfg['w'], floor=cfg['floor'])
+
+
 def make_policy(name, models, cfg, rng, maxima=None, shadow=False):
     if name == 'reactive':
         return ReactivePolicy()
@@ -82,17 +104,20 @@ def make_policy(name, models, cfg, rng, maxima=None, shadow=False):
     raise ValueError(name)
 
 
-def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
+def run(policy_name, family, seed, cfg=None, shadow=False, types=None, progress=None, trace=False, **overrides):
     cfg = dict(CONFIG if cfg is None else cfg)
     cfg.update(overrides)
+    if types is not None:
+        cfg['n'] = len(types)
+        cfg['m'] = types[0].m
     n, m = cfg['n'], cfg['m']
     rng_prog = np.random.default_rng([seed, 1])
     rng_sched = np.random.default_rng([seed, 2])
     rng_roll = np.random.default_rng([seed, 3])
     START = start_state(m)
 
-    types = family_types(family, n, m, rng_prog)
-    models = [MarkovModel(m, window=cfg['w'], floor=cfg['floor']) for _ in range(n)]
+    types = family_types(family, n, m, rng_prog) if types is None else list(types)
+    models = [make_model(cfg, m, seed, i) for i in range(n)]
     # warm-up: each slot's model has seen one earlier life of its process (the historical request log)
     for i in range(n):
         for _ in range(cfg['warmup_lives']):
@@ -114,24 +139,31 @@ def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
 
     state = State(n, m)
     policy = make_policy(policy_name, models, cfg, rng_roll, maxima)
+    if trace and hasattr(policy, 'detail'):
+        policy.detail = True
     shadow_sage = make_policy('sage', models, cfg, rng_roll, shadow=True) if shadow else None
 
     queue = []                                  # waiting processes in arrival order
     pending_shift = [False] * n
     pers = [t.personality for t in types]
+    names = [getattr(t, 'name', None) or 'P%d' % (i + 1) for i, t in enumerate(types)]
 
     R = dict(policy=policy_name, family=family, seed=seed, cfg=cfg,
              events=0, requests=0, blocked=0, free_requests=0, granted=0, policy_waits=0,
              fallback=0, reevals=0, forced=0, deadlocks=0, completed=0, restarts=0,
              slot_completed=[0] * n,  # completions per process slot (fairness / starvation)
              slot_aborts=[0] * n,     # times each slot was chosen as the deadlock victim
+             slot_pred=[[0, 0] for _ in range(n)],   # (correct, total) next-event predictions per slot
              wasted=0,                # program steps undone by rollbacks
              decisions=[],            # (tick, i, r, decision, risk, path, latency_s, is_reeval)
              deadlock_log=[],         # (tick, cycle members, victim)
              flags=[],                # shadow mode: (tick, i, risk)
              shift_first={}, drift_flag={}, drift_recover={},
              pred={p: dict(total=0, correct=0, ll=0.0) for p in set(pers)},
-             update_time=0.0, updates=0, event_log=[], pers=pers)
+             update_time=0.0, updates=0, event_log=[], pers=pers, names=names,
+             trace=[] if trace else None,
+             programs_log=[(0, i, list(programs[i])) for i in range(n)] if trace else None)
+    cur = None                                  # the trace entry of the current tick
 
     def emit(i, e, tick):
         prev = state.last[i]
@@ -143,11 +175,15 @@ def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
         st['total'] += 1
         st['correct'] += correct
         st['ll'] += models[i].loglik(prev, e, held, peak, epis)
+        R['slot_pred'][i][0] += correct
+        R['slot_pred'][i][1] += 1
+        if cur is not None:
+            cur['correct'] = correct
         if family == 'shift':
             R['event_log'].append((tick, i, correct, i in R['shift_first']))
         t0 = perf_counter()
         n_held = int(held.sum()) + (1 if e < m else (-1 if e < 2 * m else -int(held.sum())))
-        models[i].update(prev, e, n_held, peak, epis)
+        models[i].update(prev, e, n_held, peak, epis, held=held)
         if (e < m and not held.any()) or e == 2 * m:
             state.peak[i] = 0                          # a new episode starts (or the life ends)
         if m <= e < 2 * m and n_held == 0:
@@ -176,6 +212,14 @@ def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
                 R['flags'].append((tick, i, srisk))
         R['decisions'].append((tick, i, r, d, risk, path, dt, reeval))
         note(i, path, tick)
+        if cur is not None:
+            rec = dict(i=i, r=r, d=d, risk=risk, path=path, ms=dt * 1000.0)
+            if path == 'learned' and getattr(policy, 'last_detail', None):
+                rec['fut'] = policy.last_detail.get(i)
+            if reeval:
+                cur.setdefault('reevals', []).append(rec)
+            else:
+                cur['decision'] = rec
         return d, risk, path
 
     def grant(i, r):
@@ -210,6 +254,8 @@ def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
 
     def respawn(i):
         programs[i] = types[i].program(rng_prog)
+        if R['programs_log'] is not None:
+            R['programs_log'].append((state.now, i, list(programs[i])))
         state.born[i] = state.now                      # a new life gets a new timestamp
         pc[i] = 0
         state.last[i] = START
@@ -235,126 +281,184 @@ def run(policy_name, family, seed, cfg=None, shadow=False, **overrides):
         R['wasted'] += before - pc[i]                  # program steps that will have to be redone
         R['restarts'] += 1
         R['slot_aborts'][i] += 1
+        if cur is not None:
+            cur.setdefault('aborts', []).append(dict(i=i, undone=before - pc[i]))
         wake(tick)
 
     def victim(cyc, closer):
         return min(cyc, key=lambda j: (R['slot_aborts'][j], j != closer))
+
+    def snap():
+        """Close the trace entry of this tick with the state after it."""
+        cur['alloc'] = [int(sum(1 << r for r in np.flatnonzero(state.alloc[i]))) for i in range(n)]
+        cur['status'] = state.status.tolist()
+        cur['pending'] = state.pending.tolist()
+        cur['reason'] = state.reason.tolist()
+        cur['pc'] = list(pc)
+        cur['queue'] = list(queue)
+        cur['done'] = list(R['slot_completed'])
+        R['trace'].append(cur)
 
     tick = 0
     stall_guard = 0
     resolve = getattr(policy, 'recovery', 'detect')    # 'detect': abort a victim at once; 'timeout'
     while tick < cfg['ticks']:
         state.now = tick
-        if resolve == 'timeout':                           # roll back processes blocked for too long
-            for j in range(n):
-                if state.status[j] == WAITING and state.reason[j] == HELD and \
-                        state.now - state.since[j] >= policy.timeout:
-                    abort(j, tick)
-        if family == 'shift' and tick == cfg['shift_tick']:
-            for i in range(n):
-                if types[i].post_seq:
-                    types[i].shifted = True
-                    pending_shift[i] = True
-        runnable = [i for i in range(n) if state.status[i] == ACTIVE]
-        if not runnable:
-            queued = [j for j in queue if state.reason[j] == POLICY]
-            if queued:
-                j = policy.pick_forced(state, queued)
-                grant(j, state.pending[j])
-                pc[j] += 1
-                R['forced'] += 1
-                stall_guard += 1
-                if stall_guard > 10 * n:
-                    break
-                continue
-            g = state.wait_for()
-            if resolve == 'timeout' and g:                     # all blocked: the longest wait times out first
-                abort(min(g, key=lambda j: state.since[j]), tick)
-                continue
-            if has_cycle(g):                                   # cannot normally happen: cycles are caught on blocking
+        if progress is not None and tick % 25 == 0:
+            progress(tick, cfg['ticks'])
+        if trace:
+            cur = dict(t=tick)
+        try:
+            if resolve == 'timeout':                           # roll back processes blocked for too long
+                for j in range(n):
+                    if state.status[j] == WAITING and state.reason[j] == HELD and \
+                            state.now - state.since[j] >= policy.timeout:
+                        abort(j, tick)
+            if family == 'shift' and tick == cfg['shift_tick']:
                 for i in range(n):
-                    cyc = find_cycle(g, i)
-                    if cyc:
-                        v = victim(cyc, cyc[-1])
-                        R['deadlocks'] += 1
-                        R['deadlock_log'].append((tick, cyc, v))
-                        abort(v, tick)
+                    if types[i].post_seq:
+                        types[i].shifted = True
+                        pending_shift[i] = True
+            runnable = [i for i in range(n) if state.status[i] == ACTIVE]
+            if not runnable:
+                queued = [j for j in queue if state.reason[j] == POLICY]
+                if queued:
+                    j = policy.pick_forced(state, queued)
+                    grant(j, state.pending[j])
+                    pc[j] += 1
+                    R['forced'] += 1
+                    stall_guard += 1
+                    if cur is not None:
+                        cur.update(i=int(j), op=REQ, r=int(state.pending[j]) if state.pending[j] >= 0 else -1,
+                                   out='forced', risk=getattr(policy, 'last_risk', {}).get(j))
+                        cur['r'] = int(np.flatnonzero(state.alloc[j])[-1]) if state.alloc[j].any() else -1
+                    if stall_guard > 10 * n:
                         break
-                continue
-            break                                              # everything finished
-        stall_guard = 0
-        i = int(rng_sched.choice(runnable))
-        if pending_shift[i] and not state.alloc[i].any():
-            programs[i] = types[i].program(rng_prog)
-            pc[i] = 0
-            pending_shift[i] = False
-            R['shift_first'][i] = tick
-            policy.set_program_max(i, true_max(programs[i], m))
-        kind, r = programs[i][pc[i]]
-        tick += 1
-        state.now = tick
-        R['events'] += 1
-        if kind == REQ:
-            R['requests'] += 1
-            if state.alloc[i, r]:
-                pc[i] += 1
-                continue
-            emit(i, r, tick)
-            if not state.avail[r]:
-                R['blocked'] += 1
-                died = False
-                while not state.avail[r] and hasattr(policy, 'on_block'):
-                    act = policy.on_block(state, i, r, state.holder(r))
-                    if act == 'die':                           # the requester rolls back instead of waiting
-                        abort(i, tick)
-                        died = True
-                        break
-                    if act != 'wound':
-                        break
-                    abort(state.holder(r), tick)               # the holder is rolled back; check again
-                if died:
                     continue
-            if not state.avail[r]:
-                state.wait(i, r, HELD)
-                queue.append(i)
                 g = state.wait_for()
-                cyc = find_cycle(g, i)
-                if cyc and i in cyc:
-                    R['deadlocks'] += 1
-                    if resolve == 'timeout':                   # counted, left to the timeout
-                        R['deadlock_log'].append((tick, cyc, -1))
-                    else:
-                        v = victim(cyc, i)
-                        R['deadlock_log'].append((tick, cyc, v))
-                        abort(v, tick)
-                continue
-            R['free_requests'] += 1
-            d, risk, path = decide(i, r, tick, False)
-            if d == GRANT:
-                R['granted'] += 1
-                grant(i, r)
+                if resolve == 'timeout' and g:                     # all blocked: the longest wait times out first
+                    v = min(g, key=lambda j: state.since[j])
+                    abort(v, tick)
+                    if cur is not None:
+                        cur.update(i=int(v), op=-1, r=-1, out='timeout')
+                    continue
+                if has_cycle(g):                                   # cannot normally happen: cycles are caught on blocking
+                    for i in range(n):
+                        cyc = find_cycle(g, i)
+                        if cyc:
+                            v = victim(cyc, cyc[-1])
+                            R['deadlocks'] += 1
+                            R['deadlock_log'].append((tick, cyc, v))
+                            if cur is not None:
+                                cur.update(i=int(v), op=-1, r=-1, out='deadlock', dl=dict(cycle=[int(c) for c in cyc], victim=int(v)))
+                            abort(v, tick)
+                            break
+                    continue
+                cur = None
+                break                                              # everything finished
+            stall_guard = 0
+            i = int(rng_sched.choice(runnable))
+            if pending_shift[i] and not state.alloc[i].any():
+                programs[i] = types[i].program(rng_prog)
+                if R['programs_log'] is not None:
+                    R['programs_log'].append((tick, i, list(programs[i])))
+                pc[i] = 0
+                pending_shift[i] = False
+                R['shift_first'][i] = tick
+                policy.set_program_max(i, true_max(programs[i], m))
+            kind, r = programs[i][pc[i]]
+            tick += 1
+            state.now = tick
+            R['events'] += 1
+            if cur is not None:
+                cur.update(t=tick, i=i, op=int(kind), r=int(r))
+            if kind == REQ:
+                R['requests'] += 1
+                if state.alloc[i, r]:
+                    pc[i] += 1
+                    if cur is not None:
+                        cur['out'] = 'held'
+                    continue
+                emit(i, r, tick)
+                if not state.avail[r]:
+                    R['blocked'] += 1
+                    died = False
+                    while not state.avail[r] and hasattr(policy, 'on_block'):
+                        act = policy.on_block(state, i, r, state.holder(r))
+                        if act == 'die':                           # the requester rolls back instead of waiting
+                            abort(i, tick)
+                            died = True
+                            break
+                        if act != 'wound':
+                            break
+                        abort(state.holder(r), tick)               # the holder is rolled back; check again
+                    if died:
+                        if cur is not None:
+                            cur['out'] = 'die'
+                        continue
+                if not state.avail[r]:
+                    state.wait(i, r, HELD)
+                    queue.append(i)
+                    g = state.wait_for()
+                    cyc = find_cycle(g, i)
+                    if cyc and i in cyc:
+                        R['deadlocks'] += 1
+                        if resolve == 'timeout':                   # counted, left to the timeout
+                            R['deadlock_log'].append((tick, cyc, -1))
+                            if cur is not None:
+                                cur.update(out='deadlock', dl=dict(cycle=[int(c) for c in cyc], victim=-1))
+                        else:
+                            v = victim(cyc, i)
+                            R['deadlock_log'].append((tick, cyc, v))
+                            if cur is not None:
+                                cur.update(out='deadlock', dl=dict(cycle=[int(c) for c in cyc], victim=int(v)))
+                            abort(v, tick)
+                    elif cur is not None:
+                        cur['out'] = 'blocked'
+                    continue
+                R['free_requests'] += 1
+                d, risk, path = decide(i, r, tick, False)
+                if d == GRANT:
+                    R['granted'] += 1
+                    grant(i, r)
+                    pc[i] += 1
+                elif d == FALLBACK:
+                    R['fallback'] += 1
+                    grant(i, r)                                    # reactive rule: the resource is free
+                    pc[i] += 1
+                else:
+                    R['policy_waits'] += 1
+                    state.wait(i, r, POLICY)
+                    queue.append(i)
+                if cur is not None:
+                    cur['out'] = 'grant' if d in (GRANT, FALLBACK) else 'wait'
+                    cur['risk'] = risk
+                    cur['path'] = path
+            elif kind == REL:
+                emit(i, m + r, tick)
+                state.release(i, r)
                 pc[i] += 1
-            elif d == FALLBACK:
-                R['fallback'] += 1
-                grant(i, r)                                    # reactive rule: the resource is free
-                pc[i] += 1
+                if cur is not None:
+                    cur['out'] = 'release'
+                wake(tick)
             else:
-                R['policy_waits'] += 1
-                state.wait(i, r, POLICY)
-                queue.append(i)
-        elif kind == REL:
-            emit(i, m + r, tick)
-            state.release(i, r)
-            pc[i] += 1
-            wake(tick)
-        else:
-            emit(i, 2 * m, tick)
-            state.release_all(i)
-            R['completed'] += 1
-            R['slot_completed'][i] += 1
-            state.done_at[i] = tick
-            respawn(i)
-            wake(tick)
+                emit(i, 2 * m, tick)
+                state.release_all(i)
+                R['completed'] += 1
+                R['slot_completed'][i] += 1
+                state.done_at[i] = tick
+                if cur is not None:
+                    cur['out'] = 'exit'
+                respawn(i)
+                wake(tick)
+        finally:
+            if cur is not None and 'out' in cur:
+                snap()
+            cur = None
+    if progress is not None:
+        progress(cfg['ticks'], cfg['ticks'])
     R['final_state'] = state
     R['models'] = models
+    R['types'] = types
+    R['ticks_run'] = tick
     return R

@@ -9,9 +9,18 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Liberation Sans', 'Arial', 'DejaVu Sans']   # first one installed
 plt.rcParams['font.size'] = 8.5
+plt.rcParams['axes.edgecolor'] = '#9AA3B2'
+plt.rcParams['axes.labelcolor'] = '#44506A'
+plt.rcParams['xtick.color'] = '#44506A'
+plt.rcParams['ytick.color'] = '#44506A'
+plt.rcParams['axes.spines.top'] = False
+plt.rcParams['axes.spines.right'] = False
+plt.rcParams['grid.color'] = '#E6E4DE'
+plt.rcParams['legend.frameon'] = False
+plt.rcParams['figure.facecolor'] = 'white'
 POLICIES = ['bankers', 'reactive', 'sage']
 LABEL = {'bankers': "Banker's Algorithm", 'reactive': 'Reactive DFS', 'sage': 'SAGE (Markov)'}
-COLOUR = {'bankers': '#7f7f7f', 'reactive': '#c0504d', 'sage': '#1f4e79'}
+COLOUR = {'bankers': '#B8860B', 'reactive': '#9B2335', 'sage': '#2457A0'}   # gold, burgundy, navy (console palette)
 FAMILIES = ['fixed', 'bursty', 'escalating', 'mixed']
 FAM_LABEL = {'fixed': 'Fixed-pattern', 'bursty': 'Bursty / random', 'escalating': 'Gradually escalating', 'mixed': 'Mixed'}
 

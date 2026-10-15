@@ -231,5 +231,88 @@ check('12d timeout: deadlocks are counted but left to the timeout (%d deadlocks,
       % (R['deadlocks'], R['restarts']),
       R['deadlocks'] > 0 and all(v == -1 for _, _, v in R['deadlock_log']) and R['restarts'] >= R['deadlocks'])
 
+# ---------------------------------------------------------------- 13. LSTM behaviour model
+from sagesim.lstm_model import LSTMModel, HAVE_TORCH
+from sagesim.workload import types_from_spec, program_events
+from sagesim.rag import start_state as _ss
+
+if HAVE_TORCH:
+    m = 3                                      # escalating process: {R1}, {R1,R2}, {R1,R2,R3}, exit
+    prog = [0, m + 0, 0, 1, m + 1, m + 0, 0, 1, 2, m + 2, m + 1, m + 0, 2 * m]
+    mdl = LSTMModel(m, seed=1)
+    p_exit_after_two, p_exit_after_three, infeasible = [], [], 0
+    for life in range(20):
+        prev, held, peak, epis = _ss(m), np.zeros(m, dtype=bool), 0, 0
+        for e in prog:
+            if life >= 16:                      # score the network itself on the last four lives
+                row = mdl._lstm_row(held)
+                if row[(~np.concatenate([~held, held, [True]])).nonzero()[0]].sum() > 1e-9:
+                    infeasible += 1
+                if prev == m + 0 and not held.any() and epis == 2:
+                    p_exit_after_two.append(row[2 * m])
+                elif prev == m + 0 and not held.any() and epis == 3:
+                    p_exit_after_three.append(row[2 * m])
+            n_after = int(held.sum()) + (1 if e < m else (-1 if e < 2 * m else -int(held.sum())))
+            mdl.update(prev, e, n_after, peak, epis, held=held)
+            if e < m:
+                if not held.any():
+                    peak = 0
+                held[e] = True
+            elif e < 2 * m:
+                held[e - m] = False
+                if not held.any():
+                    epis += 1
+            else:
+                held[:] = False
+                peak, epis = 0, 0
+            peak = max(peak, int(held.sum()))
+            prev = e
+    pe2, pe3 = float(np.mean(p_exit_after_two)), float(np.mean(p_exit_after_three))
+    check('13a the LSTM tells the end of level 2 (P(exit) = %.2f) from the end of level 3 (P(exit) = %.2f) '
+          'and never puts mass on infeasible events (%d)' % (pe2, pe3, infeasible),
+          pe2 < 0.3 and pe3 > 0.6 and infeasible == 0)
+    A = run('sage', 'mixed', 0, ticks=300, model='lstm')
+    B = run('sage', 'mixed', 0, ticks=300, model='lstm')
+    same = [d[:6] for d in A['decisions']] == [d[:6] for d in B['decisions']] and A['deadlock_log'] == B['deadlock_log']
+    engines = [mdl.engine for mdl in A['models']]
+    check('13b runs with the LSTM engine are deterministic and gate the network per process %s' % engines,
+          same and all(e in ('markov', 'markov+peak', 'markov+count', 'lstm') for e in engines))
+    C = run('sage', 'bursty', 0, ticks=500, model='lstm')
+    st = [mdl.status() for mdl in C['models']]
+    better = sum(1 for x in st if x['lstm_ll'] > x['ref_ll'])
+    check('13c on bursty processes the network scores at least as well as the tables for most slots (%d of %d) '
+          'and is the engine in use where it does' % (better, len(st)),
+          better >= len(st) // 2 and all((x['engine'] == 'lstm') <= (x['gate_lstm'] > x['gate_ref']) for x in st))
+else:
+    check('13  LSTM cases skipped: torch is not installed', True)
+
+# ---------------------------------------------------------------- 14. custom workloads and the replay trace
+spec = dict(m=2, resources=['printer', 'scanner'],
+            processes=[dict(name='A', type='custom', ops=['req printer', 'req scanner', 'rel scanner', 'rel printer'], cycles=[2, 3]),
+                       dict(name='B', type='custom', ops=[['req', 1], ['req', 0], ['rel', 0], ['rel', 1]], cycles=[2, 3])])
+types = types_from_spec(spec, np.random.default_rng(0))
+evs = program_events(types[0].program(np.random.default_rng(1)), 2)
+check('14a a custom spec builds programs with balanced requests and releases %s' % evs[:5],
+      evs[-1] == 4 and evs.count(0) == evs.count(2) and evs.count(1) == evs.count(3) and len(evs) in (9, 13))
+try:
+    types_from_spec(dict(m=2, processes=[dict(type='custom', ops=['req 0', 'req 0'])]), np.random.default_rng(0))
+    bad = False
+except ValueError:
+    bad = True
+check('14b a program that requests what it already holds is rejected', bad)
+Rr = run('reactive', 'custom', 0, types=types, ticks=300, trace=True)
+Rs = run('sage', 'custom', 0, types=types, ticks=300, trace=True)
+check('14c opposite lock orders deadlock under reactive detection (%d) and not under SAGE (%d)' % (Rr['deadlocks'], Rs['deadlocks']),
+      Rr['deadlocks'] > 0 and Rs['deadlocks'] == 0)
+tr = Rs['trace']
+dl_entries = [e for e in Rr['trace'] if e.get('dl')]
+consistent = all(len(e['alloc']) == 2 and len(e['pc']) == 2 and len(e['status']) == 2 for e in tr)
+ticked = sum(1 for e in tr if e['out'] not in ('forced', 'timeout'))      # forced grants share the tick of the stall
+check('14d the trace has one entry per event with the allocation and program position (%d entries, %d deadlock entries)'
+      % (len(tr), len(dl_entries)), consistent and ticked == Rs['ticks_run'] and len(dl_entries) == Rr['deadlocks'])
+futs = [e['decision']['fut'] for e in tr if e.get('decision') and e['decision'].get('fut')]
+check('14e every learned-path decision carries the outcome of its simulated futures (%d)' % len(futs),
+      len(futs) > 0 and all(0 <= f['dead'] <= f['K'] and sum(f['steps']) == f['dead'] for f in futs))
+
 print('\n%d of %d checks passed' % (sum(ok for _, ok in results), len(results)))
 sys.exit(0 if all(ok for _, ok in results) else 1)
